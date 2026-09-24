@@ -25,6 +25,8 @@
 
 **Done when:** the deployed page shows a player moving on a test map, a save/load round-trip test passes, and the simulation runs in Node.
 
+**Status: built.** The save/load round trip and headless simulation are covered by tests in CI, and a browser smoke test checks that the player walks on the built page. The public page goes live once GitHub Pages is enabled and `main` exists (see the README). A generated 512 × 512 m test forest, a 63° N calendar and sun, a placeholder hourly wind, save/load with migrations, the debug panel and the headless runner are in place. See the [README](../README.md) for how to run it.
+
 ---
 
 ### M1 — "Tracks in the mud" (the fun prototype)

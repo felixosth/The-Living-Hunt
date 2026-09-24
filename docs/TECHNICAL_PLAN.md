@@ -375,8 +375,9 @@ The shot inset and the HUD are DOM (Preact) layered over the canvas.
 
 ## 16. Developer tooling (built early, used daily)
 
-- **God view (F1):** all agents, awareness meters, scent cones and the scent grid, sign heatmap, navigation grid, points of interest, game trails.
-- **Simulation inspector (F2):** populations and prices over time (uPlot), a chronicle browser with the cause graph, and time controls up to ×10 000 (skip weeks).
+- **Debug panel (the `` ` `` key, since M0):** performance, time controls (pause, 1×, 10×, 60×), quicksave/quickload, save export/import, new world by seed, state hash. The tools below grow out of it.
+- **God view:** all agents, awareness meters, scent cones and the scent grid, sign heatmap, navigation grid, points of interest, game trails.
+- **Simulation inspector:** populations and prices over time (uPlot), a chronicle browser with the cause graph, and time controls up to ×10 000 (skip weeks).
 - **Scenarios:** named starting states (`default`, `harsh-winter`, `wet-spring`, `wolf-crisis`…) that can be loaded from a menu or a URL parameter.
 - **Headless runner:**
   ```
@@ -429,6 +430,7 @@ The shot inset and the HUD are DOM (Preact) layered over the canvas.
 ├─ package.json · tsconfig.json · vite.config.ts · biome.json
 ├─ src/
 │  ├─ main.ts                # boot: load content, create/load world, start loop
+│  ├─ app/                   # browser glue: session (commands, ticks, snapshots), loop, input
 │  ├─ core/                  # rng, time/calendar, ids, math, spatial hash, serialisation
 │  ├─ sim/                   # PURE, DETERMINISTIC — no DOM, no Pixi
 │  │  ├─ world.ts            # WorldState, createWorld(), step()
@@ -448,6 +450,7 @@ The shot inset and the HUD are DOM (Preact) layered over the canvas.
 │  ├─ content/               # species, goods, recipes, regions, npcs, scenarios (typed data)
 │  ├─ render/                # Pixi layers, chunks, decals, fx, vision, camera
 │  ├─ ui/                    # Preact: HUD, journal, hub, valley map, dialogues
+│  ├─ persistence/           # save format, migrations, IndexedDB slots, file export/import
 │  ├─ audio/
 │  └─ debug/                 # god view, inspector, time controls
 ├─ tools/sim-runner/         # headless runs → CSV + HTML report

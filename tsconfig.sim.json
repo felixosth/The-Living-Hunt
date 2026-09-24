@@ -1,0 +1,10 @@
+{
+  // Type-level purity check: the simulation and core utilities are compiled
+  // without DOM or Node typings, so any browser/Node API use fails to typecheck.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src/sim", "src/core", "src/content"]
+}

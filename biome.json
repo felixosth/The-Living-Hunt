@@ -1,0 +1,88 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": { "quoteStyle": "single" }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": { "preset": "recommended" }
+  },
+  "assist": {
+    "actions": { "source": { "organizeImports": "on" } }
+  },
+  "overrides": [
+    {
+      "includes": ["src/sim/**", "src/core/**", "src/content/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pixi.js": "The simulation must not depend on rendering.",
+                  "preact": "The simulation must not depend on UI.",
+                  "preact/hooks": "The simulation must not depend on UI.",
+                  "@preact/signals": "The simulation must not depend on UI.",
+                  "idb-keyval": "The simulation must not depend on browser storage."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "**/app/**",
+                      "**/render/**",
+                      "**/ui/**",
+                      "**/audio/**",
+                      "**/persistence/**",
+                      "**/debug/**"
+                    ],
+                    "message": "src/sim, src/core and src/content must stay pure: no app, rendering, UI, audio or storage code."
+                  }
+                ]
+              }
+            },
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "window": "The simulation must not touch the browser.",
+                  "document": "The simulation must not touch the browser.",
+                  "navigator": "The simulation must not touch the browser.",
+                  "localStorage": "The simulation must not touch browser storage.",
+                  "indexedDB": "The simulation must not touch browser storage.",
+                  "fetch": "The simulation must not do I/O.",
+                  "performance": "Use game time, not wall-clock time.",
+                  "Date": "Use game time (core/time), not wall-clock time.",
+                  "setTimeout": "The simulation advances only through step().",
+                  "setInterval": "The simulation advances only through step().",
+                  "requestAnimationFrame": "The simulation advances only through step()."
+                }
+              }
+            }
+          },
+          "nursery": {
+            "noJsRestrictedProperties": {
+              "level": "error",
+              "options": {
+                "entries": [
+                  {
+                    "object": "Math",
+                    "property": "random",
+                    "message": "Use a seeded RNG stream from core/rng."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "the-living-hunt",
+  "private": true,
+  "version": "0.0.1",
+  "description": "A systemic hunting RPG for the browser.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.sim.json",
+    "lint": "biome check .",
+    "fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "sim": "tsx tools/sim-runner/run.ts",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.11.2",
+    "idb-keyval": "^6.3.0",
+    "pixi.js": "^8.21.0",
+    "preact": "^10.29.8",
+    "simplex-noise": "^4.0.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@playwright/test": "^1.63.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^22.20.4",
+    "fake-indexeddb": "^6.2.5",
+    "fast-check": "^4.10.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.1"
+  }
+}

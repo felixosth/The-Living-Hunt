@@ -1,0 +1,226 @@
+:root {
+  --ink: #e9e0c9;
+  --ink-dim: #b3aa94;
+  --panel: rgba(14, 18, 16, 0.74);
+  --panel-edge: rgba(233, 224, 201, 0.14);
+  --accent: #d8b46a;
+  --danger: #e0806a;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0d1210;
+  color: var(--ink);
+  font: 14px / 1.4 var(--serif);
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+#stage canvas {
+  display: block;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.panel {
+  pointer-events: auto;
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  padding: 8px 12px;
+  backdrop-filter: blur(3px);
+}
+
+.hud-top {
+  top: 12px;
+  left: 12px;
+}
+
+.hud-clock {
+  font-size: 26px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-badge {
+  margin-left: 10px;
+  font-size: 12px;
+  vertical-align: middle;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #1b160c;
+}
+
+.hud-date {
+  font-size: 16px;
+}
+
+.hud-sub,
+.hud-label {
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.hud-wind {
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.wind-ring {
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.wind-n {
+  fill: var(--ink-dim);
+  font: 7px var(--mono);
+  text-anchor: middle;
+}
+
+.wind-arrow {
+  fill: var(--accent);
+}
+
+.hud-status {
+  bottom: 12px;
+  left: 12px;
+}
+
+.hud-sep {
+  margin: 0 6px;
+  color: var(--ink-dim);
+}
+
+.help {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--ink-dim);
+  font-size: 12px;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+kbd {
+  font: 11px var(--mono);
+  padding: 0 4px;
+  margin: 0 1px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.debug {
+  top: 110px;
+  right: 12px;
+  width: 380px;
+  font: 12px / 1.5 var(--mono);
+}
+
+.debug-title {
+  font: 15px var(--serif);
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.debug table {
+  border-collapse: collapse;
+  margin-bottom: 6px;
+}
+
+.debug th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--ink-dim);
+  padding-right: 10px;
+  vertical-align: top;
+}
+
+.debug-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.debug-label {
+  width: 46px;
+  color: var(--ink-dim);
+}
+
+.debug button,
+.debug input {
+  font: 12px var(--mono);
+  color: var(--ink);
+  background: rgba(233, 224, 201, 0.08);
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 2px 7px;
+}
+
+.debug button {
+  cursor: pointer;
+}
+
+.debug button:hover {
+  background: rgba(233, 224, 201, 0.16);
+}
+
+.debug button.on {
+  background: var(--accent);
+  color: #1b160c;
+}
+
+.debug input[type="text"] {
+  width: 170px;
+}
+
+.debug code {
+  color: var(--accent);
+}
+
+.toast {
+  bottom: 48px;
+  right: 12px;
+}
+
+.toast.error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.fatal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--danger);
+}
