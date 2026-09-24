@@ -15,6 +15,19 @@ async function hold(page: Page, key: string, ms: number) {
   await page.keyboard.up(key);
 }
 
+/**
+ * Hold a key until `done` holds. Software-rendered CI browsers can run at a
+ * few frames per second, so a fixed hold time may cover only one game tick.
+ */
+async function holdUntil(page: Page, key: string, done: () => Promise<boolean>) {
+  await page.keyboard.down(key);
+  try {
+    await expect.poll(done, { timeout: 20_000 }).toBe(true);
+  } finally {
+    await page.keyboard.up(key);
+  }
+}
+
 test('boots, walks, saves and loads', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -28,8 +41,7 @@ test('boots, walks, saves and loads', async ({ page }) => {
 
   // Walking east moves the player.
   const start = await snap(page);
-  await hold(page, 'KeyD', 800);
-  await expect.poll(async () => (await snap(page)).player.x).toBeGreaterThan(start.player.x + 1);
+  await holdUntil(page, 'KeyD', async () => (await snap(page)).player.x > start.player.x + 1);
 
   // Pause, quicksave and remember the exact state.
   await page.keyboard.press('Backquote');
