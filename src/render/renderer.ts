@@ -5,7 +5,8 @@
  * scales the world and overlay containers together.
  *
  * Layers, bottom to top: ground (baked terrain and trails), tree shadows,
- * agents (the player), canopies (faded around the player) and the cabin roof.
+ * agents (the player), canopies (faded around the player) and the cabin roof,
+ * then the air (wind and your scent) and arrows in flight.
  * The overlay above them is not darkened at night; it holds debug drawings.
  */
 import {
@@ -24,7 +25,9 @@ import { clamp, lerp, lerpAngle } from '../core/math';
 import type { SoundKind } from '../sim/events';
 import type { RegionMap } from '../sim/region';
 import type { Snapshot } from '../sim/snapshot';
+import { AirLayer } from './air';
 import { AnimalLayer } from './animals';
+import { ArrowFlights, type ArrowShot } from './arrows';
 import { ScreenCues } from './cues';
 import { COLORS, TERRAIN_RGB } from './palette';
 import { SignLayer } from './signs';
@@ -65,6 +68,9 @@ export class Renderer {
   private signs: SignLayer;
   private agentLayer = new Container();
   private canopyLayer = new Container();
+  private airLayer = new Container();
+  private air: AirLayer;
+  private arrows: ArrowFlights;
   private player = new Container();
   private debug = new Graphics();
   private animals: AnimalLayer;
@@ -92,8 +98,11 @@ export class Renderer {
       this.shadowLayer,
       this.agentLayer,
       this.canopyLayer,
+      this.airLayer,
     );
     this.agentLayer.addChild(this.player);
+    this.air = new AirLayer(this.airLayer);
+    this.arrows = new ArrowFlights(this.airLayer);
     this.overlay.addChild(this.debug);
     app.stage.addChild(this.world, this.overlay);
     this.cues = new ScreenCues(app.stage);
@@ -167,6 +176,18 @@ export class Renderer {
     const seen = this.animals.update(prev, curr, alpha, this.zoom);
     this.signs.update(curr, this.zoom, performance.now());
     this.fadeCanopies([{ x: pxM, y: pyM }, ...seen]);
+    const now = performance.now();
+    const topLeft = this.screenToWorld(0, 0);
+    const bottomRight = this.screenToWorld(width, height);
+    this.air.update(
+      curr,
+      pxM,
+      pyM,
+      { x0: topLeft.x, y0: topLeft.y, x1: bottomRight.x, y1: bottomRight.y },
+      this.zoom,
+      now,
+    );
+    this.arrows.update(this.zoom, now);
     this.drawDebug(curr);
     this.cues.draw(
       curr,
@@ -177,7 +198,7 @@ export class Renderer {
       }),
       width,
       height,
-      performance.now(),
+      now,
     );
 
     // Darken by tinting the whole world (a multiply), not with an overlay pass.
@@ -190,6 +211,11 @@ export class Renderer {
     this.world.tint = (r << 16) | (g << 8) | b;
 
     this.app.render();
+  }
+
+  /** Show an arrow flying from the bow to where it ends up. */
+  addArrow(shot: ArrowShot): void {
+    this.arrows.add(shot, performance.now());
   }
 
   /** Where the mouse is, so the camera can look that way (null when it leaves the window). */

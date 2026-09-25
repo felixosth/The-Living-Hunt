@@ -47,5 +47,7 @@ export const COLORS = {
   /** God view sign dots by kind: print, pellets, bed, browse, blood, arrow. */
   godSign: [0x3a2a1c, 0x5a3a1c, 0xc9b98a, 0x4a7a2a, 0xc8242a, 0xffffff] as readonly number[],
   scent: 0xd8b46a,
+  wind: 0xe8ecdf,
+  hair: 0xb8a58a,
   noise: 0x9ec3d8,
 };

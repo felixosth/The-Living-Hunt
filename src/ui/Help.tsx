@@ -30,8 +30,9 @@ export function Help() {
     <div class="panel help-panel" data-testid="help">
       <div class="card-title">How to hunt</div>
       <p class="card-meta">
-        Watch the wind: your scent drifts the way the arrow points. Move slowly on quiet ground,
-        stay in cover, and read what the animals left behind.
+        Watch the wind: the pale haze drifting away from you is your scent, and any animal inside it
+        will smell you. Move slowly on quiet ground, stay in cover, and read what the animals left
+        behind.
       </p>
       <table>
         <tbody>

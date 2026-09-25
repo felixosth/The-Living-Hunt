@@ -23,8 +23,23 @@ export type SimEvent =
   | { type: 'confirmed'; animalId: number; species: SpeciesId }
   | { type: 'trailLost' }
   | { type: 'died'; animalId: number; species: SpeciesId; seen: boolean }
-  /** The arrow is away: did it hit? (Where, you'll have to work out.) */
-  | { type: 'shot'; animalId: number; hit: boolean; dropped: boolean }
+  /**
+   * The arrow is away: did it hit? (Where, you'll have to work out.) It flies
+   * from the shooter past the animal's position to where it ends up: in the
+   * animal if it lodged, on the ground beyond it if not.
+   */
+  | {
+      type: 'shot';
+      animalId: number;
+      hit: boolean;
+      dropped: boolean;
+      fromX: number;
+      fromY: number;
+      atX: number;
+      atY: number;
+      endX: number;
+      endY: number;
+    }
   | {
       type: 'dressed';
       animalId: number;

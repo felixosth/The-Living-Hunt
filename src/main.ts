@@ -384,6 +384,7 @@ async function boot(): Promise<void> {
         } else if (event.type === 'sighted') {
           stirred = true;
         } else {
+          if (event.type === 'shot') renderer.addArrow(event);
           describeTracking(event);
         }
       }

@@ -153,12 +153,16 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[]): 
 
   const hit = result.zone !== 'miss';
   const lodged = hit && !result.passThrough;
+  let endX = a.x;
+  let endY = a.y;
   if (!lodged) {
     // The arrow flies on and lands beyond the animal.
     const fire = Math.atan2(a.y - p.y, a.x - p.x) + nextRange(rng, -0.08, 0.08);
     const beyond = d + (hit ? nextRange(rng, 2, 10) : nextRange(rng, 5, 25));
     const x = p.x + Math.cos(fire) * beyond;
     const y = p.y + Math.sin(fire) * beyond;
+    endX = x;
+    endY = y;
     if (isWalkable(map, x, y)) {
       addSign(state.signs, {
         kind: SignKind.Arrow,
@@ -186,7 +190,18 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[]): 
     other.alarmY = p.y;
   }
   applyHit(a, ctx, result.zone, result.tainted, lodged, p.x, p.y);
-  events.push({ type: 'shot', animalId: a.id, hit, dropped: result.zone === 'spine' });
+  events.push({
+    type: 'shot',
+    animalId: a.id,
+    hit,
+    dropped: result.zone === 'spine',
+    fromX: p.x,
+    fromY: p.y,
+    atX: a.x,
+    atY: a.y,
+    endX,
+    endY,
+  });
 }
 
 function bloodOnArrow(zone: string): number {
