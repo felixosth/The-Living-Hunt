@@ -34,6 +34,18 @@ export const COLORS = {
   eyeSuspicious: 0xe8c16a,
   eyeAlarmed: 0xe0806a,
   poi: { bed: 0x6a9a5a, feed: 0xd8c46a, water: 0x6ab4d8, form: 0xb08ad8 } as const,
+  ink: 0x24180f,
+  signHalo: 0xf1ead8,
+  bed: 0xc9b98a,
+  browse: 0x4a5a2a,
+  bloodBright: 0xc8242a,
+  bloodDark: 0x6a1014,
+  gut: 0x6a6a2a,
+  arrow: 0xd8c8a0,
+  fletching: 0xc84a3a,
+  followed: 0xe8c16a,
+  /** God view sign dots by kind: print, pellets, bed, browse, blood, arrow. */
+  godSign: [0x3a2a1c, 0x5a3a1c, 0xc9b98a, 0x4a7a2a, 0xc8242a, 0xffffff] as readonly number[],
   scent: 0xd8b46a,
   noise: 0x9ec3d8,
 };

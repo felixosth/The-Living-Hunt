@@ -1,6 +1,9 @@
 import { render } from 'preact';
 import { DebugPanel } from './DebugPanel';
+import { Help } from './Help';
 import { Hud } from './Hud';
+import { Journal } from './Journal';
+import { ReadingCard } from './ReadingCard';
 import { debugOpen, type GameActions, notices, toast } from './store';
 
 function App({ actions }: { actions: GameActions }) {
@@ -8,6 +11,8 @@ function App({ actions }: { actions: GameActions }) {
   return (
     <>
       <Hud />
+      <ReadingCard actions={actions} />
+      <Journal />
       {debugOpen.value && <DebugPanel actions={actions} />}
       <div class="notices" data-testid="notices">
         {notices.value.map((n) => (
@@ -21,13 +26,7 @@ function App({ actions }: { actions: GameActions }) {
           {t.text}
         </div>
       )}
-      <div class="help">
-        <kbd>W</kbd>
-        <kbd>A</kbd>
-        <kbd>S</kbd>
-        <kbd>D</kbd> move · <kbd>Shift</kbd> run · <kbd>C</kbd> sneak · <kbd>T</kbd> wait ·{' '}
-        <kbd>P</kbd> pause · wheel zoom · <kbd>`</kbd> debug
-      </div>
+      <Help />
     </>
   );
 }

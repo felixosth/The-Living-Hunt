@@ -9,13 +9,15 @@
 import type { SpeciesId } from '../content/species';
 import type { RngStreams } from '../core/rng';
 import type { GameTime } from '../core/time';
+import type { Knowledge } from './knowledge';
 import type { RegionId } from './region';
+import type { SignStore } from './signs';
 
 /**
  * Version of the WorldState shape. Bump it whenever the shape changes, and add
  * a migration in src/persistence/migrations.ts.
  */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 export type Gait = 'sneak' | 'walk' | 'run';
 export const GAITS: readonly Gait[] = ['sneak', 'walk', 'run'];
@@ -30,6 +32,24 @@ export interface PlayerState {
   /** Current movement intent, a direction vector (zero when standing still). */
   moveX: number;
   moveY: number;
+  /** A timed action that holds the player in place, and when it ends. */
+  busy: 'scan' | null;
+  busyUntil: number;
+  knowledge: Knowledge;
+  /** The trail being followed: whose, and the last sign found on it. */
+  follow: FollowState | null;
+  /** Per animal id: when you last read one of its signs, and when that was last confirmed. */
+  read: Record<string, { at: number; confirmed: number }>;
+}
+
+export interface FollowState {
+  animal: number;
+  /** Time the last found sign was made; the trail continues with later ones. */
+  lastT: number;
+  x: number;
+  y: number;
+  /** You've wandered away from the last sign found. */
+  lost: boolean;
 }
 
 export interface WeatherState {
@@ -87,6 +107,10 @@ export interface Animal {
   wariness: number;
   /** Whether the player could see it at the end of the last step. */
   seen: boolean;
+  /** Game time the current activity started. */
+  since: number;
+  /** Metres walked since its last recorded print. */
+  stride: number;
 }
 
 export interface WorldState {
@@ -101,6 +125,7 @@ export interface WorldState {
   player: PlayerState;
   animals: Animal[];
   nextAnimalId: number;
+  signs: SignStore;
   /**
    * The player's ground scent: for each 8 m cell of the region, the game time
    * the player last walked through it (0 = never). Deer crossing it get nervous.

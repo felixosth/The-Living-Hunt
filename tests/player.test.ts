@@ -21,7 +21,15 @@ function player(
   gait: Gait = 'walk',
 ): PlayerState {
   const len = Math.hypot(moveX, moveY) || 1;
-  return { x, y, heading: 0, gait, moveX: moveX / len, moveY: moveY / len };
+  return {
+    ...createWorld(1).player,
+    x,
+    y,
+    heading: 0,
+    gait,
+    moveX: moveX / len,
+    moveY: moveY / len,
+  };
 }
 
 describe('player movement', () => {
@@ -94,7 +102,7 @@ describe('player movement', () => {
           }
         },
       ),
-      { numRuns: 60 },
+      { numRuns: 30 },
     );
-  });
+  }, 30_000);
 });

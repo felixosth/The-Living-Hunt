@@ -21,7 +21,7 @@ const EDGE_MARGIN_M = 0.01;
 
 export function advancePlayer(player: PlayerState, map: RegionMap, dtSeconds: number): void {
   const { moveX, moveY } = player;
-  if (moveX === 0 && moveY === 0) return;
+  if ((moveX === 0 && moveY === 0) || player.busy) return;
   player.heading = Math.atan2(moveY, moveX);
 
   const maxX = regionWidthM(map) - EDGE_MARGIN_M;

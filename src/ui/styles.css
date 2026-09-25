@@ -144,12 +144,27 @@ body {
 
 .help {
   position: absolute;
-  bottom: 14px;
+  top: 14px;
   left: 50%;
   transform: translateX(-50%);
   color: var(--ink-dim);
   font-size: 12px;
   text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+.help-panel {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+}
+
+.help-panel th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--accent);
+  padding-right: 14px;
   white-space: nowrap;
 }
 
@@ -266,6 +281,90 @@ kbd {
   100% {
     opacity: 0;
   }
+}
+
+.card {
+  top: 100px;
+  right: 12px;
+  width: 300px;
+}
+
+.card-title {
+  font-size: 17px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.card-line {
+  margin: 2px 0;
+  font-style: italic;
+}
+
+.card-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.card-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.card button {
+  font: 13px var(--serif);
+  color: var(--ink);
+  background: rgba(233, 224, 201, 0.08);
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.card button:hover {
+  background: rgba(233, 224, 201, 0.16);
+}
+
+.journal {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 340px;
+}
+
+.journal-section {
+  margin-top: 8px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.journal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 3px 0;
+}
+
+.know-bar {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.know-seg {
+  width: 28px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.status-track {
+  color: var(--accent);
+}
+
+.status-track.lost {
+  color: var(--danger);
 }
 
 .toast {

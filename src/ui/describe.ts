@@ -39,3 +39,19 @@ export function describeSound(
       return `A hare bursts from cover ${where}.`;
   }
 }
+
+const SIGN_WORDS: Record<string, string> = {
+  print: 'prints',
+  pellets: 'droppings',
+  bed: 'beds',
+  browse: 'browse',
+  blood: 'blood',
+};
+
+export function describeLearning(area: 'species' | 'signs', key: string, level: number): string {
+  if (area === 'species') {
+    const name = SPECIES[key as keyof typeof SPECIES]?.plural ?? key;
+    return `You understand ${name} better (level ${level}).`;
+  }
+  return `Your eye for ${SIGN_WORDS[key] ?? key} sharpens (level ${level}).`;
+}

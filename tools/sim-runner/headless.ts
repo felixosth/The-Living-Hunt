@@ -65,6 +65,12 @@ export function runHeadless({
     seasonStarted: 0,
     sound: 0,
     sighted: 0,
+    scanned: 0,
+    inspected: 0,
+    learned: 0,
+    confirmed: 0,
+    trailLost: 0,
+    trailFound: 0,
   };
   const activity: RunResult['activity'] = {};
   const daily: DailySample[] = [];

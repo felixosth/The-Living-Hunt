@@ -2,11 +2,13 @@
  * Read-only view of the world published after each step for rendering and UI.
  * Rendering and UI never read WorldState directly.
  */
-import type { SpeciesId } from '../content/species';
+import { SPECIES_IDS, type SpeciesId } from '../content/species';
 import type { TerrainId } from '../content/terrain';
 import { type GameTime, lightLevel } from '../core/time';
 import { ALARMED, SUSPICIOUS } from './animals';
+import { type Knowledge, level } from './knowledge';
 import { getRegionMap, groundAt, type RegionId } from './region';
+import { SIGN_KIND_NAMES, SignFlag, SignKind, type SignKindName, type SignStore } from './signs';
 import type { Activity, Animal, Gait, WorldState } from './state';
 import {
   isMoving,
@@ -16,6 +18,7 @@ import {
   type ScentCone,
   scentCone,
 } from './stealth';
+import { SCAN_SECONDS } from './tracking';
 
 export type Alertness = 'unaware' | 'suspicious' | 'alarmed' | 'fleeing';
 
@@ -36,6 +39,27 @@ export interface AnimalView {
   seen: boolean;
   /** God view only. */
   debug?: { sex: 'f' | 'm'; weightKg: number; goal: number; wariness: number };
+}
+
+export interface SignView {
+  id: number;
+  kind: SignKindName;
+  species: SpeciesId;
+  x: number;
+  y: number;
+  /** Radians, screen convention. */
+  heading: number;
+  integrity: number;
+  /** Blood type for blood (its colour is plain to see), otherwise 0. */
+  blood: number;
+  followed: boolean;
+  inspected: boolean;
+}
+
+export interface KnowledgeView {
+  /** Levels 0–4 and progress (0..1) to the next. */
+  species: Record<SpeciesId, { level: number; progress: number }>;
+  signs: Record<SignKindName, { level: number; progress: number }>;
 }
 
 export interface Snapshot {
@@ -65,7 +89,55 @@ export interface Snapshot {
   light: number;
   /** Animals the player can see; every animal in god view. */
   animals: AnimalView[];
+  /** Signs the player has found. */
+  signs: SignView[];
+  /** Changes whenever the found signs change. */
+  signsRevision: number;
+  tracking: {
+    /** Scan progress 0..1, or null when not scanning. */
+    scan: number | null;
+    following: { species: SpeciesId | null; lost: boolean } | null;
+    knowledge: KnowledgeView;
+  };
+  /** God view only: every sign. */
+  allSigns?: { count: number; x: Float32Array; y: Float32Array; kind: Uint8Array };
   godView: boolean;
+}
+
+function knowledgeView(k: Knowledge): KnowledgeView {
+  const view = (xp: number) => ({
+    level: level(xp),
+    progress: level(xp) >= 4 ? 1 : xp - Math.floor(xp),
+  });
+  return {
+    species: Object.fromEntries(
+      Object.entries(k.species).map(([key, xp]) => [key, view(xp)]),
+    ) as KnowledgeView['species'],
+    signs: Object.fromEntries(
+      Object.entries(k.signs).map(([key, xp]) => [key, view(xp)]),
+    ) as KnowledgeView['signs'],
+  };
+}
+
+function noticedSigns(store: SignStore): SignView[] {
+  const out: SignView[] = [];
+  for (let i = 0; i < store.count; i++) {
+    const flags = store.flags[i] as number;
+    if (!(flags & SignFlag.Noticed)) continue;
+    out.push({
+      id: store.id[i] as number,
+      kind: SIGN_KIND_NAMES[store.kind[i] as number] as SignKindName,
+      species: SPECIES_IDS[store.species[i] as number] as SpeciesId,
+      x: store.x[i] as number,
+      y: store.y[i] as number,
+      heading: store.heading[i] as number,
+      integrity: store.integrity[i] as number,
+      blood: store.kind[i] === SignKind.Blood ? (store.detail[i] as number) : 0,
+      followed: (flags & SignFlag.Followed) !== 0,
+      inspected: (flags & SignFlag.Inspected) !== 0,
+    });
+  }
+  return out;
 }
 
 export interface SnapshotOptions {
@@ -130,6 +202,31 @@ export function makeSnapshot(
     scent: scentCone(state.weather),
     light,
     animals: state.animals.filter((a) => a.seen || godView).map((a) => viewAnimal(a, godView)),
+    signs: noticedSigns(state.signs),
+    signsRevision: state.signs.revision,
+    tracking: {
+      scan:
+        player.busy === 'scan'
+          ? 1 - Math.max(0, player.busyUntil - state.time) / SCAN_SECONDS
+          : null,
+      following: player.follow
+        ? {
+            species: state.animals.find((a) => a.id === player.follow?.animal)?.species ?? null,
+            lost: player.follow.lost,
+          }
+        : null,
+      knowledge: knowledgeView(player.knowledge),
+    },
+    ...(godView
+      ? {
+          allSigns: {
+            count: state.signs.count,
+            x: state.signs.x.slice(0, state.signs.count),
+            y: state.signs.y.slice(0, state.signs.count),
+            kind: state.signs.kind.slice(0, state.signs.count),
+          },
+        }
+      : {}),
     godView,
   };
 }

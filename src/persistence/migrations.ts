@@ -3,7 +3,9 @@
  * src/sim/state.ts and add an entry here that upgrades the previous version.
  * Old saves are then upgraded step by step on load.
  */
+import { initialKnowledge } from '../sim/knowledge';
 import { getRegionMap, isWalkable } from '../sim/region';
+import { createSignStore } from '../sim/signs';
 import { STATE_VERSION } from '../sim/state';
 import { createWorld } from '../sim/world';
 
@@ -26,6 +28,28 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
       player.y = map.spawn.y;
     }
     return { ...fresh, time: old.time, tick: old.tick, rng: old.rng, weather: old.weather, player };
+  },
+  /** Step 3 of M1: signs, knowledge and trail following. */
+  2: (old) => {
+    const player = old.player as Record<string, unknown>;
+    const animals = (old.animals as Record<string, unknown>[]).map((a) => ({
+      ...a,
+      since: old.time,
+      stride: 0,
+    }));
+    return {
+      ...old,
+      animals,
+      signs: createSignStore(),
+      player: {
+        ...player,
+        busy: null,
+        busyUntil: 0,
+        knowledge: initialKnowledge(),
+        follow: null,
+        read: {},
+      },
+    };
   },
 };
 

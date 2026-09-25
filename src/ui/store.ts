@@ -1,6 +1,7 @@
 /** UI state as signals. The app writes them; components read them. */
 import { signal } from '@preact/signals';
 import type { TimeScale } from '../app/session';
+import type { Reading } from '../sim/reading';
 import type { Snapshot } from '../sim/snapshot';
 
 export interface GameActions {
@@ -12,6 +13,10 @@ export interface GameActions {
   importSave(file: File): Promise<void>;
   newWorld(seed: number): void;
   stateHash(): string;
+  scan(): void;
+  inspect(signId: number): void;
+  /** Follow the trail from a sign; 0 stops following. */
+  follow(signId: number): void;
 }
 
 export interface Perf {
@@ -38,6 +43,10 @@ export const debugOpen = signal(false);
 /** Debug overlay: every animal, sign, scent cone and noise radius. */
 export const godView = signal(false);
 export const toast = signal<Toast | null>(null);
+/** The last sign reading, shown as a journal card until closed. */
+export const reading = signal<Reading | null>(null);
+export const journalOpen = signal(false);
+export const helpOpen = signal(false);
 
 let toastId = 0;
 export function showToast(text: string, kind: Toast['kind'] = 'info'): void {

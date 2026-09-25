@@ -3,22 +3,28 @@ import { effect } from '@preact/signals';
 import { Input } from './app/input';
 import { startLoop } from './app/loop';
 import { GameSession, TICK_MS } from './app/session';
+import { SPECIES } from './content/species';
 import { formatClock, formatDate } from './core/time';
 import { decodeSave, encodeSave } from './persistence/saveFile';
 import { downloadSaveFile, readFileBytes, readSlot, writeSlot } from './persistence/storage';
 import { Renderer } from './render/renderer';
+import type { SimEvent } from './sim/events';
 import { getRegionMap } from './sim/region';
 import type { WorldState } from './sim/state';
+import { INSPECT_RANGE_M } from './sim/tracking';
 import { createWorld, stateHash } from './sim/world';
 import { mountUi } from './ui/App';
-import { describeSound } from './ui/describe';
+import { describeLearning, describeSound } from './ui/describe';
 import {
   addNotice,
   controls,
   debugOpen,
   type GameActions,
   godView,
+  helpOpen,
+  journalOpen,
   perf,
+  reading,
   showToast,
   snapshot,
 } from './ui/store';
@@ -111,6 +117,9 @@ async function boot(): Promise<void> {
       showToast(`New world — seed ${seed}`);
     },
     stateHash: () => stateHash(session.state),
+    scan: () => session.enqueue({ type: 'scan' }),
+    inspect: (signId) => session.enqueue({ type: 'inspect', signId }),
+    follow: (signId) => session.enqueue({ type: 'follow', signId }),
   };
 
   mountUi(uiRoot, actions);
@@ -125,6 +134,51 @@ async function boot(): Promise<void> {
     // T: wait (10×), again for normal speed. P: pause.
     if (e.code === 'KeyT') actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
     if (e.code === 'KeyP') actions.togglePause();
+    if (e.code === 'KeyQ') actions.scan();
+    if (e.code === 'KeyJ') journalOpen.value = !journalOpen.value;
+    if (e.code === 'KeyH') helpOpen.value = !helpOpen.value;
+    if (e.code === 'KeyF') {
+      const r = reading.value;
+      const following = session.curr.tracking.following;
+      if (following) actions.follow(0);
+      else if (r) actions.follow(r.signId);
+    }
+    if (e.code === 'Escape') {
+      if (helpOpen.value) helpOpen.value = false;
+      else if (journalOpen.value) journalOpen.value = false;
+      else if (reading.value) reading.value = null;
+      else if (session.curr.tracking.following) actions.follow(0);
+    }
+  });
+  // Pointing at found signs: hover highlights, click reads.
+  const signUnder = (e: MouseEvent) => {
+    const at = renderer.screenToWorld(e.clientX, e.clientY);
+    const reach = Math.max(1.2, renderer.metresPerPixel(14));
+    let best: { id: number; x: number; y: number } | null = null;
+    let bestD = reach;
+    for (const sign of session.curr.signs) {
+      const d = Math.hypot(sign.x - at.x, sign.y - at.y);
+      if (d < bestD) {
+        bestD = d;
+        best = sign;
+      }
+    }
+    return best;
+  };
+  stage.addEventListener('mousemove', (e) => {
+    const sign = signUnder(e);
+    renderer.setHoverSign(sign?.id ?? 0);
+    stage.style.cursor = sign ? 'pointer' : '';
+  });
+  stage.addEventListener('click', (e) => {
+    const sign = signUnder(e);
+    if (!sign) return;
+    const p = session.curr.player;
+    if (Math.hypot(sign.x - p.x, sign.y - p.y) > INSPECT_RANGE_M) {
+      addNotice('Too far away to read. Get closer.');
+      return;
+    }
+    actions.inspect(sign.id);
   });
   stage.addEventListener(
     'wheel',
@@ -134,6 +188,33 @@ async function boot(): Promise<void> {
     },
     { passive: false },
   );
+
+  function describeTracking(event: SimEvent): void {
+    switch (event.type) {
+      case 'scanned':
+        showToast(
+          event.found === 0
+            ? 'You find nothing new here.'
+            : `You find ${event.found} sign${event.found === 1 ? '' : 's'}.`,
+        );
+        return;
+      case 'inspected':
+        reading.value = event.reading;
+        return;
+      case 'learned':
+        addNotice(describeLearning(event.area, event.key, event.level));
+        return;
+      case 'confirmed':
+        addNotice(`There it is: the ${SPECIES[event.species].name} whose sign you read.`);
+        return;
+      case 'trailLost':
+        addNotice('You have lost the trail. Scan (Q) to pick it up again.');
+        return;
+      case 'trailFound':
+        addNotice('You pick up the trail again.');
+        return;
+    }
+  }
 
   // Perf counters, published twice a second.
   let frames = 0;
@@ -155,6 +236,8 @@ async function boot(): Promise<void> {
           stirred = true;
         } else if (event.type === 'sighted') {
           stirred = true;
+        } else {
+          describeTracking(event);
         }
       }
       // Waiting stops as soon as something is seen or heard.

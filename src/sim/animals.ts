@@ -20,6 +20,7 @@ import { type SimEvent, SOUND_RANGE_M, type SoundKind } from './events';
 import { cellCentre, cellOf, downhill, isCellOpen } from './nav';
 import { PERCEPTION_RANGE_M, type PlayerCues, perceivePlayer, playerCanSee } from './perception';
 import { coverAt, isWalkable, type Poi, type PoiKind, poiField, type RegionMap } from './region';
+import { emitBed, emitFeedingSigns, emitPrints } from './signEmission';
 import type { Animal, AnimalHome, PlayerState, WorldState } from './state';
 
 export const SUSPICIOUS = 0.3;
@@ -110,6 +111,8 @@ function makeAnimal(
     scentCheckedAt: 0,
     wariness: 0,
     seen: false,
+    since: state.time,
+    stride: 0,
   };
 }
 
@@ -211,7 +214,29 @@ export function updateAnimals(
     if (cues) sense(a, ctx, cues);
     if (a.species === 'roe') checkScentTrail(a, ctx);
   }
-  for (const a of state.animals) behave(a, ctx);
+  for (const a of state.animals) {
+    const x0 = a.x;
+    const y0 = a.y;
+    const was = a.activity;
+    behave(a, ctx);
+    leaveSigns(a, ctx, x0, y0, was);
+  }
+}
+
+function leaveSigns(a: Animal, ctx: Ctx, x0: number, y0: number, was: Animal['activity']): void {
+  const { state, map, dt, now } = ctx;
+  const rng = state.rng.signs;
+  emitPrints(state.signs, map, rng, a, x0, y0, now);
+  emitFeedingSigns(state.signs, map, rng, a, dt, now);
+  if (was !== a.activity) {
+    if (was === 'bedded' && now - a.since >= 30 * 60) {
+      const beds = state.animals.filter(
+        (b) => b.groupId === a.groupId && Math.hypot(b.x - a.x, b.y - a.y) < 12,
+      ).length;
+      emitBed(state.signs, a, beds, now);
+    }
+    a.since = now;
+  }
 }
 
 /** Record the player's ground scent in the cell they're standing in. */

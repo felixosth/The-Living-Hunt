@@ -8,13 +8,22 @@ import {
   scentAt,
   scentCone,
 } from '../src/sim/stealth';
+import { createWorld } from '../src/sim/world';
 import { synthMap } from './helpers';
 
 const meadow = synthMap(20, 20, () => Terrain.Grass);
 const thicket = synthMap(20, 20, () => Terrain.Thicket);
 
 function player(gait: PlayerState['gait'], moving: boolean): PlayerState {
-  return { x: 10, y: 10, heading: 0, gait, moveX: moving ? 1 : 0, moveY: 0 };
+  return {
+    ...createWorld(1).player,
+    x: 10,
+    y: 10,
+    heading: 0,
+    gait,
+    moveX: moving ? 1 : 0,
+    moveY: 0,
+  };
 }
 
 describe('noise', () => {

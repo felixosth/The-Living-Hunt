@@ -23,8 +23,10 @@ import { hash32 } from '../core/hash';
 import { clamp, lerp, lerpAngle } from '../core/math';
 import type { RegionMap } from '../sim/region';
 import type { Snapshot } from '../sim/snapshot';
+import { SCAN_RADIUS_M } from '../sim/tracking';
 import { AnimalLayer } from './animals';
 import { COLORS, TERRAIN_RGB } from './palette';
+import { SignLayer } from './signs';
 
 extensions.add(CullerPlugin);
 
@@ -56,6 +58,9 @@ export class Renderer {
   private overlay = new Container();
   private groundLayer = new Container();
   private shadowLayer = new Container();
+  private signLayer = new Container();
+  private signs: SignLayer;
+  private scanRing = new Graphics();
   private agentLayer = new Container();
   private canopyLayer = new Container();
   private player = new Container();
@@ -73,12 +78,20 @@ export class Renderer {
 
   private constructor(app: Application) {
     this.app = app;
-    this.world.addChild(this.groundLayer, this.shadowLayer, this.agentLayer, this.canopyLayer);
+    this.world.addChild(
+      this.groundLayer,
+      this.signLayer,
+      this.shadowLayer,
+      this.agentLayer,
+      this.canopyLayer,
+    );
     this.agentLayer.addChild(this.player);
     this.overlay.addChild(this.debug);
     app.stage.addChild(this.world, this.overlay);
     this.player.addChild(drawPlayer());
     this.animals = new AnimalLayer(this.agentLayer, this.overlay);
+    this.signs = new SignLayer(this.signLayer, this.overlay);
+    this.overlay.addChild(this.scanRing);
     this.canopyTextures = COLORS.canopy.map((color) => canopyTexture(app, color));
   }
 
@@ -103,6 +116,7 @@ export class Renderer {
     this.regionKey = key;
     this.map = map;
     this.animals.clear();
+    this.signs.clear();
     for (const child of this.groundLayer.removeChildren())
       child.destroy({ texture: true, textureSource: true });
     for (const child of this.shadowLayer.removeChildren()) child.destroy();
@@ -140,6 +154,8 @@ export class Renderer {
     }
 
     const seen = this.animals.update(prev, curr, alpha, this.zoom);
+    this.signs.update(curr, this.zoom, performance.now());
+    this.drawScan(curr, x, y);
     this.fadeCanopies([{ x: pxM, y: pyM }, ...seen]);
     this.drawDebug(curr);
 
@@ -153,6 +169,37 @@ export class Renderer {
     this.world.tint = (r << 16) | (g << 8) | b;
 
     this.app.render();
+  }
+
+  /** Screen pixel to world metres. */
+  screenToWorld(sx: number, sy: number): { x: number; y: number } {
+    return {
+      x: (sx - this.world.position.x) / this.zoom / PX_PER_M,
+      y: (sy - this.world.position.y) / this.zoom / PX_PER_M,
+    };
+  }
+
+  /** Metres covered by `px` screen pixels at the current zoom. */
+  metresPerPixel(px: number): number {
+    return px / this.zoom / PX_PER_M;
+  }
+
+  setHoverSign(id: number): void {
+    this.signs.setHover(id);
+  }
+
+  /** While scanning: a ring sweeping round the search radius. */
+  private drawScan(s: Snapshot, x: number, y: number): void {
+    const g = this.scanRing;
+    g.clear();
+    if (s.tracking.scan === null) return;
+    const r = SCAN_RADIUS_M * PX_PER_M;
+    const start = -Math.PI / 2;
+    g.circle(x, y, r).stroke({ width: 1.5 / this.zoom, color: COLORS.signHalo, alpha: 0.35 });
+    g.moveTo(x, y)
+      .arc(x, y, r, start, start + Math.PI * 2 * Math.max(0.02, s.tracking.scan))
+      .lineTo(x, y)
+      .fill({ color: COLORS.signHalo, alpha: 0.08 });
   }
 
   private buildCanopies(map: RegionMap): void {

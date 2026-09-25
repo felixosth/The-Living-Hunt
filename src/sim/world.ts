@@ -24,11 +24,14 @@ import {
 } from './animals';
 import { applyCommand, type Command } from './commands';
 import type { SimEvent } from './events';
+import { initialKnowledge } from './knowledge';
 import type { PlayerCues } from './perception';
 import { advancePlayer } from './player';
 import { getRegionMap, type RegionMap } from './region';
+import { createSignStore, decaySigns } from './signs';
 import type { WorldState } from './state';
 import { noiseRadiusM, playerNoise, playerVisibility, scentCone } from './stealth';
+import { confirmSightings, updateTracking } from './tracking';
 import { initialWeather, updateWeatherHourly } from './weather';
 
 export type { SimEvent } from './events';
@@ -40,7 +43,7 @@ const WARM_UP_STEP = 60;
 // World creation is a pure function of (seed, scenario) but the warm-up takes a
 // moment, so the result is memoised and handed out as fresh copies.
 const created = new Map<string, WorldState>();
-const CREATED_LIMIT = 4;
+const CREATED_LIMIT = 8;
 
 export function createWorld(seed: number, scenario: Scenario = DEFAULT_SCENARIO): WorldState {
   const key = `${seed >>> 0}:${scenario.id}`;
@@ -71,8 +74,14 @@ function buildWorld(seed: number, scenario: Scenario): WorldState {
       gait: 'walk',
       moveX: 0,
       moveY: 0,
+      busy: null,
+      busyUntil: 0,
+      knowledge: initialKnowledge(),
+      follow: null,
+      read: {},
     },
     animals: [],
+    signs: createSignStore(),
     nextAnimalId: 1,
     scentTrail: new Uint32Array(scentCells(map)),
   };
@@ -103,7 +112,7 @@ export function step(
     throw new RangeError(`step() needs a positive whole number of seconds, got ${dtSeconds}`);
   }
   const events: SimEvent[] = [];
-  for (const command of commands) applyCommand(state, command);
+  for (const command of commands) applyCommand(state, command, events);
   advance(state, getRegionMap(state.seed, state.regionId), dtSeconds, events, true);
   state.tick++;
   return events;
@@ -139,12 +148,17 @@ function advance(
   for (let hour = firstHour; hour <= lastHour; hour++) {
     onHourStarted(state, hour * SECONDS_PER_HOUR, events);
   }
-  if (playerPresent) updateSightings(state, map, lightLevel(state.time), events);
+  if (playerPresent) {
+    updateTracking(state, map, dt, light, events);
+    updateSightings(state, map, lightLevel(state.time), events);
+    confirmSightings(state, events);
+  }
 }
 
 function onHourStarted(state: WorldState, time: GameTime, events: SimEvent[]): void {
   events.push({ type: 'hourStarted', time });
   updateWeatherHourly(state.weather, state.rng.weather);
+  decaySigns(state.signs, 1);
   if (time % SECONDS_PER_DAY === 0) onDayStarted(state, time, events);
 }
 

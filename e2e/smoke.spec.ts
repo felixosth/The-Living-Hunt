@@ -43,6 +43,17 @@ test('boots, walks, saves and loads', async ({ page }) => {
   const start = await snap(page);
   await holdUntil(page, 'KeyD', async () => (await snap(page)).player.x > start.player.x + 1);
 
+  // Scanning the ground reports what it found.
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('toast')).toContainText(/You find/);
+  // The journal and help open and close.
+  await page.keyboard.press('KeyJ');
+  await expect(page.getByTestId('journal')).toContainText('roe deer');
+  await page.keyboard.press('KeyJ');
+  await page.keyboard.press('KeyH');
+  await expect(page.getByTestId('help')).toBeVisible();
+  await page.keyboard.press('KeyH');
+
   // Pause, quicksave and remember the exact state.
   await page.keyboard.press('Backquote');
   await expect(page.getByTestId('debug-panel')).toBeVisible();

@@ -1,3 +1,4 @@
+import { SPECIES } from '../content/species';
 import { terrainDef } from '../content/terrain';
 import { compassName } from '../core/math';
 import { daylight, formatClock, formatDate, formatHours, formatSecondOfDay } from '../core/time';
@@ -48,10 +49,25 @@ export function Hud() {
           {s.player.terrain === null ? '—' : terrainDef(s.player.terrain).name}
           {s.player.onTrail && ' (trail)'}
         </span>
+        <TrackingStatus />
         <Meter label="Noise" value={Math.min(1, s.player.noiseRadius / 80)} testId="noise" />
         <Meter label="Seen" value={s.player.visibility} testId="visibility" />
       </div>
     </>
+  );
+}
+
+function TrackingStatus() {
+  const s = snapshot.value;
+  if (!s) return null;
+  const { scan, following } = s.tracking;
+  if (scan !== null) return <span class="status-track">Scanning…</span>;
+  if (!following) return null;
+  const who = following.species ? SPECIES[following.species].name : 'animal';
+  return (
+    <span class={`status-track${following.lost ? ' lost' : ''}`} data-testid="following">
+      {following.lost ? `Lost the ${who} trail: scan (Q)` : `Following a ${who}`}
+    </span>
   );
 }
 
