@@ -29,7 +29,9 @@ export function Hud() {
             timeScale > 1 && <span class="hud-badge">{timeScale}×</span>
           )}
         </div>
-        <div class="hud-date">{formatDate(s.time)}</div>
+        <div class="hud-date">
+          {formatDate(s.time)} · {s.regionName}
+        </div>
         <div class="hud-sub">{sunText}</div>
       </div>
       <Wind fromDeg={s.wind.fromDeg} speed={s.wind.speed} />
@@ -42,9 +44,27 @@ export function Hud() {
               : 'Standing'}
         </span>
         <span class="hud-sep">·</span>
-        <span>{s.player.terrain === null ? '—' : terrainDef(s.player.terrain).name}</span>
+        <span>
+          {s.player.terrain === null ? '—' : terrainDef(s.player.terrain).name}
+          {s.player.onTrail && ' (trail)'}
+        </span>
+        <Meter label="Noise" value={Math.min(1, s.player.noiseRadius / 80)} testId="noise" />
+        <Meter label="Seen" value={s.player.visibility} testId="visibility" />
       </div>
     </>
+  );
+}
+
+/** A five-segment meter, filled from the left. */
+function Meter({ label, value, testId }: { label: string; value: number; testId: string }) {
+  const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
+  return (
+    <span class="meter" data-testid={testId} title={`${label}: ${Math.round(value * 100)} %`}>
+      <span class="hud-label">{label}</span>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} class={i < filled ? `pip on${i >= 3 ? ' hot' : ''}` : 'pip'} />
+      ))}
+    </span>
   );
 }
 

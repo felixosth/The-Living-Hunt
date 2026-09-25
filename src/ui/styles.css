@@ -107,6 +107,34 @@ body {
 .hud-status {
   bottom: 12px;
   left: 12px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.meter {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.meter .hud-label {
+  margin-right: 4px;
+}
+
+.pip {
+  width: 8px;
+  height: 10px;
+  border-radius: 1px;
+  background: rgba(233, 224, 201, 0.15);
+}
+
+.pip.on {
+  background: var(--ink-dim);
+}
+
+.pip.on.hot {
+  background: var(--danger);
 }
 
 .hud-sep {

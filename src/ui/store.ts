@@ -35,6 +35,8 @@ export const controls = signal<{ timeScale: TimeScale; paused: boolean; sneakTog
   sneakToggled: false,
 });
 export const debugOpen = signal(false);
+/** Debug overlay: every animal, sign, scent cone and noise radius. */
+export const godView = signal(false);
 export const toast = signal<Toast | null>(null);
 
 let toastId = 0;

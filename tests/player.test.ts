@@ -6,22 +6,11 @@ import { advancePlayer, GAIT_SPEED_M_PER_MIN } from '../src/sim/player';
 import { getRegionMap, isWalkable, type RegionMap, regionWidthM } from '../src/sim/region';
 import type { Gait, PlayerState } from '../src/sim/state';
 import { createWorld, step } from '../src/sim/world';
+import { synthMap } from './helpers';
 
 /** A small synthetic map: meadow everywhere, with a deep-water column at tile x = 10. */
 function wallMap(): RegionMap {
-  const width = 20;
-  const height = 20;
-  const terrain = new Uint8Array(width * height).fill(Terrain.Grass);
-  for (let y = 0; y < height; y++) terrain[y * width + 10] = Terrain.DeepWater;
-  return {
-    id: 'wall',
-    width,
-    height,
-    tileSize: 2,
-    terrain,
-    trees: new Float32Array(),
-    spawn: { x: 5, y: 5 },
-  };
+  return synthMap(20, 20, (tx) => (tx === 10 ? Terrain.DeepWater : Terrain.Grass));
 }
 
 function player(

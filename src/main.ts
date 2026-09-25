@@ -1,4 +1,5 @@
 import './ui/styles.css';
+import { effect } from '@preact/signals';
 import { Input } from './app/input';
 import { startLoop } from './app/loop';
 import { GameSession, TICK_MS } from './app/session';
@@ -10,7 +11,15 @@ import { getRegionMap } from './sim/region';
 import type { WorldState } from './sim/state';
 import { createWorld, stateHash } from './sim/world';
 import { mountUi } from './ui/App';
-import { controls, debugOpen, type GameActions, perf, showToast, snapshot } from './ui/store';
+import {
+  controls,
+  debugOpen,
+  type GameActions,
+  godView,
+  perf,
+  showToast,
+  snapshot,
+} from './ui/store';
 
 const QUICKSAVE_SLOT = 'quicksave';
 
@@ -103,6 +112,7 @@ async function boot(): Promise<void> {
   };
 
   mountUi(uiRoot, actions);
+  effect(() => renderer.setGodView(godView.value));
 
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Backquote' && !e.repeat) debugOpen.value = !debugOpen.value;

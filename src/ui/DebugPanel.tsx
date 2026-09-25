@@ -1,7 +1,7 @@
 import { useRef, useState } from 'preact/hooks';
 import { TIME_SCALES } from '../app/session';
 import { terrainDef } from '../content/terrain';
-import { controls, type GameActions, perf, snapshot } from './store';
+import { controls, type GameActions, godView, perf, snapshot } from './store';
 
 export function DebugPanel({ actions }: { actions: GameActions }) {
   const s = snapshot.value;
@@ -65,6 +65,20 @@ export function DebugPanel({ actions }: { actions: GameActions }) {
             {scale}×
           </button>
         ))}
+      </div>
+
+      <div class="debug-row">
+        <span class="debug-label">View</span>
+        <button
+          type="button"
+          class={godView.value ? 'on' : ''}
+          data-testid="god-view"
+          onClick={() => {
+            godView.value = !godView.value;
+          }}
+        >
+          God view
+        </button>
       </div>
 
       <div class="debug-row">
