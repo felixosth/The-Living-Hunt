@@ -12,7 +12,24 @@
 
 ## Status
 
-Not started. Waiting for a go-ahead on this plan.
+**Step 1 (weather and snow) is done**; step 2 (the fox and traps) is next.
+
+What step 1 built, with the numbers it settled on:
+
+- **Weather** (`src/sim/weather.ts`): a climate normal falling from about +6.5 °C on Autumn 8 to −2 °C at the end of autumn and −9.5 °C in late winter (a little colder than the real 63° N, so snow comes while you play). The day's swing is up to ±5.5 °C under clear skies and ±1.2 °C under cloud, smaller in the dark of winter. A temperature anomaly wanders (AR(1), about 2 °C). Fronts come every 2–5 days: 12 hours of building cloud, a backing and freshening wind and mild air, then 4–14 hours of rain or snow (0.4–2.5 mm an hour at the peak), then clearing with the wind veered. Six in ten bring colder air behind them (1.5–5 °C colder), the rest milder. Showers now and then between fronts. The wind drops at night and picks up in the afternoon. Fog forms on calm, damp early mornings.
+- **Rain, sleet or snow** by temperature: snow at or below +0.8 °C, sleet to +2.2 °C.
+- **A week ahead** of hourly weather lives in the save (`weather.ahead`); the journal's **Einar's almanac** reads it: today, tonight, tomorrow ("likely") and the day after ("perhaps").
+- **Ground** (`src/sim/ground.ts`): 1 mm of snow water gives 1 cm of snow; snow settles 0.3 % an hour and melts 0.25 cm per degree-hour above 0 (more in rain). A thaw wets the snow, and a freeze below −1 °C turns that into a crust; new snow hides the crust. Rain wets bare ground, which dries in fair weather; hard frost freezes it. Snow lies thinner under spruce (55 %) and in thickets (70 %), and not at all on water.
+- **Signs:** each mm of rain takes 0.08 off a print's clarity and 0.25 off blood (several times their normal fading). New snow buries prints under 3 cm, blood under 2 cm, droppings under 4 cm and beds under 6 cm. In 2 cm of snow or more every stride leaves a print, fully clear and lasting 96 hours, noticed on sight from 12 m. Blood on snow lasts twice as long. A thaw blurs prints in snow.
+- **Readings in snow** are dated against the snowfall: "Crisp in the new snow: made after the snow stopped, about 03:00", "Half filled with snow: made while it was still snowing", "Snow is falling into them".
+- **Your ground scent** is washed out by 0.4 mm of rain or 1 cm of new snow.
+- **Stealth:** footstep noise ×0.6 in soft snow and up to ×1.9 on a hard crust, up to ×1.45 on frozen ground, and down to ×0.7 on wet leaves. Rain masks noise like 3 m/s of extra wind per mm (up to 9). Fog cuts sight by up to 70 %, falling snow by up to about half, rain a little, for you and the animals alike. Snow cover lightens a dark night (up to +50 % sight).
+- **Animals:** heavy rain (1.5 mm an hour or more) sends deer to their beds. Snow deeper than 20 cm slows deer (half speed at 50 cm, a little less with a crust they break through). Hares run on top. You slow down past 10 cm (at most by 40 %).
+- **Drawing:** rain streaks and splash rings, snowflakes drifting with the wind, snow lying on the ground (a patchy dusting first, thinner under the trees, trodden thin on the game trails), your own footprints in snow, fog and thick snowfall closing in around you, and darker light under heavy cloud.
+- **HUD:** a weather line under the date ("Light snow · −2 °C · 6 cm of snow").
+- **Debug panel → Weather:** force clear skies, rain, snowfall, 10 cm of new snow at once, fog, a crust or a thaw, and skip 1, 6 or 24 hours.
+- **Headless runs:** `npm run sim -- --seed 1 --days 40 --weather` prints a table of each day's weather.
+- **Save:** version 9; older saves get a week of weather generated from their own weather stream.
 
 ## Time, and how to test it
 

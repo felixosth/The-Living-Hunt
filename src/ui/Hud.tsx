@@ -34,6 +34,7 @@ export function Hud() {
           {formatDate(s.time)} · {s.regionName}
         </div>
         <div class="hud-sub">{sunText}</div>
+        <WeatherLine />
       </div>
       <Wind fromDeg={s.wind.fromDeg} speed={s.wind.speed} />
       <div class="panel hud-status">
@@ -63,6 +64,21 @@ export function Hud() {
       </div>
       <Prompt />
     </>
+  );
+}
+
+/** "Light snow · −2 °C · 6 cm of snow" */
+function WeatherLine() {
+  const s = snapshot.value;
+  if (!s) return null;
+  const w = s.weather;
+  const temp = Math.round(w.temp);
+  const parts = [w.sky, `${temp < 0 ? '−' : ''}${Math.abs(temp)} °C`];
+  if (w.ground) parts.push(w.ground);
+  return (
+    <div class="hud-sub hud-weather" data-testid="weather">
+      {parts.join(' · ')}
+    </div>
   );
 }
 

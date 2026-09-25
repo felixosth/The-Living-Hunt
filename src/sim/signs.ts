@@ -30,6 +30,8 @@ export const SignFlag = {
   Inspected: 2,
   /** Part of the trail the player is following. */
   Followed: 4,
+  /** Made in snow: crisp and easy to see. */
+  InSnow: 8,
 } as const;
 
 /** Hours a sign lasts from full integrity, by kind (prints depend on the ground). */
@@ -133,6 +135,7 @@ export interface NewSign {
   integrity: number;
   /** Hours until it fades from full integrity. */
   lifetimeH: number;
+  flags?: number;
 }
 
 export function addSign(store: SignStore, s: NewSign): number {
@@ -151,7 +154,7 @@ export function addSign(store: SignStore, s: NewSign): number {
   store.weight[i] = s.weight;
   store.integrity[i] = s.integrity;
   store.decay[i] = 1 / Math.max(0.1, s.lifetimeH);
-  store.flags[i] = 0;
+  store.flags[i] = s.flags ?? 0;
   return id;
 }
 
@@ -212,6 +215,38 @@ export function decaySigns(store: SignStore, hours: number): void {
   store.revision++;
   if (store.id.length > 4 * (w + 256)) resize(store, Math.max(256, 2 * w));
 }
+
+/**
+ * What an hour of weather does to the signs: rain wears prints and blood
+ * away, new snow buries what lies on the ground, and melting blurs prints
+ * made in the snow. Browse on the twigs and arrows are left alone.
+ */
+export function weatherSigns(
+  store: SignStore,
+  rainMm: number,
+  newSnowCm: number,
+  meltCm: number,
+): void {
+  if (rainMm <= 0 && newSnowCm <= 0 && meltCm <= 0) return;
+  for (let i = 0; i < store.count; i++) {
+    const kind = store.kind[i] as SignKind;
+    const loss = SIGN_WEATHERING[kind];
+    if (!loss) continue;
+    const snowy = ((store.flags[i] as number) & SignFlag.InSnow) !== 0;
+    const lost = rainMm * loss.rain + newSnowCm / loss.buriedCm + (snowy ? meltCm * loss.melt : 0);
+    store.integrity[i] = (store.integrity[i] as number) - lost;
+  }
+  store.revision++;
+}
+
+/** Integrity lost per mm of rain, the snow depth that buries a sign, and loss per cm of melt. */
+const SIGN_WEATHERING: Partial<Record<SignKind, { rain: number; buriedCm: number; melt: number }>> =
+  {
+    [SignKind.Print]: { rain: 0.08, buriedCm: 3, melt: 0.3 },
+    [SignKind.Blood]: { rain: 0.25, buriedCm: 2, melt: 0.2 },
+    [SignKind.Pellets]: { rain: 0.01, buriedCm: 4, melt: 0 },
+    [SignKind.Bed]: { rain: 0.03, buriedCm: 6, melt: 0.15 },
+  };
 
 /** Remove the sign at index `i` entirely (e.g. an arrow you picked up), keeping the order. */
 export function removeSign(store: SignStore, i: number): void {

@@ -1,6 +1,7 @@
 /** UI state as signals. The app writes them; components read them. */
 import { signal } from '@preact/signals';
 import type { TimeScale } from '../app/session';
+import type { ForcedWeather } from '../sim/debugWeather';
 import type { MissReview } from '../sim/events';
 import type { KnowledgeArea } from '../sim/knowledge';
 import type { Reading } from '../sim/reading';
@@ -30,6 +31,10 @@ export interface GameActions {
   bleat(): void;
   /** Debug: set a skill to a level (0–4). */
   setSkill(area: KnowledgeArea, key: string, level: number): void;
+  /** Debug: force the weather for the next hours. */
+  forceWeather(kind: ForcedWeather): void;
+  /** Debug: let game hours pass at once. */
+  skipHours(hours: number): void;
 }
 
 export interface Perf {

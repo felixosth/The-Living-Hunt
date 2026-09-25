@@ -20,6 +20,7 @@ import {
   signAt,
 } from './signs';
 import type { PlayerState, WorldState } from './state';
+import { precipType } from './weather';
 
 /** How close you must be to read a sign. */
 export const INSPECT_RANGE_M = 6;
@@ -105,8 +106,14 @@ export function inspect(state: WorldState, signId: number, events: SimEvent[]): 
   const sign = signAt(signs, i);
   if (Math.hypot(sign.x - player.x, sign.y - player.y) > INSPECT_RANGE_M) return;
   const previous = player.read[String(sign.animal)];
+  const { ground } = state.weather;
   const reading = readSign(sign, player.knowledge, state.time, {
     sameAnimalAsBefore: previous !== undefined && sign.kind !== SignKind.Arrow,
+    snow: {
+      startedAt: ground.snowStartedAt,
+      endedAt: ground.snowEndedAt,
+      falling: precipType(state.weather) === 'snow',
+    },
   });
   events.push({ type: 'inspected', reading });
   if (sign.kind === SignKind.Arrow) return;
@@ -238,6 +245,9 @@ function updateFollow(
   }
 }
 
+/** How far off a clear print or blood in snow catches your eye, metres. */
+const SNOW_REACH_M = 12;
+
 /** Obvious signs close by are noticed without a scan: fresh prints in mud, blood, arrows. */
 function noticeObvious(state: WorldState): void {
   const { player, signs } = state;
@@ -248,19 +258,21 @@ function noticeObvious(state: WorldState): void {
   for (let i = 0; i < signs.count; i++) {
     // Cheap rejections first: this runs over every sign each step.
     const dx = (xs[i] as number) - px;
-    if (dx > 6 || dx < -6) continue;
+    if (dx > SNOW_REACH_M || dx < -SNOW_REACH_M) continue;
     const dy = (ys[i] as number) - py;
-    if (dy > 6 || dy < -6) continue;
+    if (dy > SNOW_REACH_M || dy < -SNOW_REACH_M) continue;
     if ((flags[i] as number) & SignFlag.Noticed) continue;
     const kind = kinds[i] as number;
     const integrity = integrities[i] as number;
+    // Snow shows every print, and blood on it, from further off.
+    const snowy = ((flags[i] as number) & SignFlag.InSnow) !== 0;
     const obvious =
       kind === SignKind.Arrow ||
       (kind === SignKind.Blood && integrity > 0.25) ||
-      (kind === SignKind.Print && integrity > 0.8) ||
+      (kind === SignKind.Print && integrity > (snowy ? 0.45 : 0.8)) ||
       (kind === SignKind.Bed && integrity > 0.7);
     if (!obvious) continue;
-    const reach = kind === SignKind.Bed ? 4 : 6;
+    const reach = snowy ? SNOW_REACH_M : kind === SignKind.Bed ? 4 : 6;
     if (dx * dx + dy * dy <= reach * reach) {
       setFlag(signs, i, SignFlag.Noticed);
       if (kind !== SignKind.Arrow) noteSignFound(player, signs.animal[i] as number, state.time);

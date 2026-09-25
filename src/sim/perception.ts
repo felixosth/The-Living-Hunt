@@ -21,6 +21,8 @@ export interface PlayerCues {
   visibility: number;
   scent: ScentCone;
   light: number;
+  /** Weather's multiplier on sight range: fog, rain and falling snow shorten it. */
+  sight: number;
 }
 
 /** Obstruction per metre of sightline per unit of cover above the threshold: roughly 30–40 m of spruce forest or 15 m of thicket blocks the view. */
@@ -70,7 +72,7 @@ export function perceivePlayer(a: Animal, cues: PlayerCues, map: RegionMap): Per
   let stimulus = 0;
 
   // Sight: a wide field of view; heads down while feeding, and a hare in its form trusts its camouflage.
-  let range = def.senses.sight * (0.35 + 0.65 * cues.light) * (0.8 + 0.2 * keen);
+  let range = def.senses.sight * (0.35 + 0.65 * cues.light) * (0.8 + 0.2 * keen) * cues.sight;
   if (a.activity === 'feeding') range *= 0.5;
   if (a.activity === 'bedded') range *= 0.8;
   if (d < range) {
@@ -99,9 +101,12 @@ export function perceivePlayer(a: Animal, cues: PlayerCues, map: RegionMap): Per
   return { stimulus, smell };
 }
 
-/** How far the player can see an animal in the open, given the light and the moon. */
-export function playerSightRange(light: number, time: number): number {
-  return lerp(25 + 30 * moonIllumination(time), 150, light);
+/**
+ * How far the player can see an animal in the open, given the light and the
+ * moon, times `weather` (fog and falling snow close in; snow cover lightens a night).
+ */
+export function playerSightRange(light: number, time: number, weather = 1): number {
+  return lerp(25 + 30 * moonIllumination(time), 150, light) * weather;
 }
 
 /** Whether the player can see this animal right now. */
@@ -111,6 +116,7 @@ export function playerCanSee(
   map: RegionMap,
   light: number,
   time: number,
+  weather = 1,
 ): boolean {
   const d = Math.hypot(a.x - player.x, a.y - player.y);
   if (d < 4) return true;
@@ -118,6 +124,6 @@ export function playerCanSee(
   const posture = a.activity === 'bedded' || a.activity === 'dead' ? 0.3 : 1;
   const small = a.species === 'hare' ? 0.7 : 1;
   const conspicuous = moving * posture * small * (1 - 0.6 * coverAt(map, a.x, a.y));
-  if (d > playerSightRange(light, time) * conspicuous) return false;
+  if (d > playerSightRange(light, time, weather) * conspicuous) return false;
   return sightlineObstruction(map, player.x, player.y, a.x, a.y) < 0.85;
 }

@@ -3,6 +3,7 @@
  *
  *   npm run sim -- --seed 42 --days 30
  *   npm run sim -- --seed 42 --days 84 --wander --out out/run-42
+ *   npm run sim -- --seed 42 --days 30 --weather   (a table of the days' weather)
  *
  * With --out, writes summary.json and daily.csv to that directory.
  */
@@ -11,6 +12,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { compassName } from '../../src/core/math';
 import { formatClock, formatDate } from '../../src/core/time';
+import { describeGround, describeSky } from '../../src/sim/weather';
 import { describeAnimals, describePlayerGround, runHeadless } from './headless';
 
 const { values } = parseArgs({
@@ -20,6 +22,7 @@ const { values } = parseArgs({
     step: { type: 'string', default: '60' },
     wander: { type: 'boolean', default: false },
     out: { type: 'string' },
+    weather: { type: 'boolean', default: false },
   },
 });
 
@@ -44,7 +47,17 @@ console.log(`The Living Hunt — headless run
   signs       ${state.signs.count.toLocaleString('en')} on the ground
   player      (${state.player.x.toFixed(1)}, ${state.player.y.toFixed(1)}) m · ${describePlayerGround(state)}
   wind        from ${compassName(state.weather.windFromDeg)} at ${state.weather.windSpeed.toFixed(1)} m/s
+  weather     ${describeSky(state.weather)}, ${state.weather.temp.toFixed(1)} °C, ${describeGround(state.weather.ground) ?? 'bare ground'}
   state hash  ${result.hash}`);
+
+if (values.weather) {
+  console.log('\n  day            00:00 °C   rain+snow mm   snow cm   wind');
+  for (const d of result.daily) {
+    console.log(
+      `  ${formatDate(d.time).padEnd(22)} ${d.temp.toFixed(1).padStart(5)}   ${d.precipMm.toFixed(1).padStart(12)}   ${String(d.snowCm).padStart(7)}   ${compassName(d.windFromDeg)} ${d.windSpeed.toFixed(1)}`,
+    );
+  }
+}
 
 if (values.out) {
   mkdirSync(values.out, { recursive: true });
@@ -62,12 +75,16 @@ if (values.out) {
     hash: result.hash,
   };
   writeFileSync(join(values.out, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
-  const header = 'date,wind_from_deg,wind_speed_ms,daylight_h,player_x_m,player_y_m';
+  const header =
+    'date,wind_from_deg,wind_speed_ms,temp_c,precip_mm,snow_cm,daylight_h,player_x_m,player_y_m';
   const rows = result.daily.map((d) =>
     [
       formatDate(d.time),
       d.windFromDeg,
       d.windSpeed,
+      d.temp,
+      d.precipMm,
+      d.snowCm,
       d.daylightHours.toFixed(2),
       d.playerX.toFixed(1),
       d.playerY.toFixed(1),

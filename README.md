@@ -49,6 +49,7 @@ At 1× speed a game minute passes every real second, so a full day lasts about 2
 | `npm test` | Vitest: unit, property-based, determinism and save tests |
 | `npm run test:e2e` | Playwright smoke test against a production build. Set `PW_CHROMIUM_PATH` to use an already-installed Chromium |
 | `npm run sim -- --seed 42 --days 84 --wander --out out/run-42` | Headless simulation; writes `summary.json` and `daily.csv` with `--out` |
+| `npm run sim -- --seed 42 --days 40 --weather` | The same, with a table of each day's weather |
 | `npm run build` | Production build into `dist/` |
 
 The simulation (`src/sim`, `src/core`, `src/content`) is pure and deterministic: it never touches the browser, and all randomness comes from seeded streams saved with the world. Rendering (`src/render`, PixiJS) and UI (`src/ui`, Preact) only read snapshots of it. See the [Technical Plan](docs/TECHNICAL_PLAN.md) for the rules.
@@ -69,4 +70,4 @@ The simulation (`src/sim`, `src/core`, `src/content`) is pure and deterministic:
 
 ## Status
 
-**M0: Foundations** and **M1: "Tracks in the mud"** are done. M1 is the fun prototype: one forest region (Granåsen) with fords, game trails and Einar's cabin; roe deer and mountain hares with daily routines, senses and awareness; signs you scan for, read and follow, with knowledge that improves as you confirm readings; and the bow, with a shot inset, an anatomy-based hit model, blood trails, field dressing, carrying and a hunt summary. See the [M1 plan](docs/M1_PLAN.md) for the mechanics and numbers. Next is **M2: "The weather turns"** ([plan](docs/M2_PLAN.md)).
+**M0: Foundations** and **M1: "Tracks in the mud"** are done. M1 is the fun prototype: one forest region (Granåsen) with fords, game trails and Einar's cabin; roe deer and mountain hares with daily routines, senses and awareness; signs you scan for, read and follow, with knowledge that improves as you confirm readings; and the bow, with a shot inset, an anatomy-based hit model, blood trails, field dressing, carrying and a hunt summary. See the [M1 plan](docs/M1_PLAN.md) for the mechanics and numbers. **M2: "The weather turns"** is under way ([plan](docs/M2_PLAN.md)): fronts bring rain and snow, snow buries old trails and takes every new print, crust and frozen leaves crunch underfoot, fog closes in on calm mornings, and Einar's almanac in the journal reads the next two days.

@@ -2,6 +2,7 @@
  * Player intents. The simulation changes only by applying commands inside
  * step(); commands are validated here and malformed ones are ignored.
  */
+import { FORCED_WEATHER, type ForcedWeather, forceWeather } from './debugWeather';
 import type { SimEvent } from './events';
 import { aim, bleat, breath, draw, interact, lower, release } from './hunting';
 import { type KnowledgeArea, MAX_LEVEL } from './knowledge';
@@ -33,7 +34,9 @@ export type Command =
   /** Developer tool: move the player instantly (god view). */
   | { type: 'teleport'; x: number; y: number }
   /** Developer tool: set a skill's experience directly (the level is its whole part, 0–4). */
-  | { type: 'setKnowledge'; area: KnowledgeArea; key: string; xp: number };
+  | { type: 'setKnowledge'; area: KnowledgeArea; key: string; xp: number }
+  /** Developer tool: force the weather for the next hours. */
+  | { type: 'forceWeather'; kind: ForcedWeather };
 
 export function applyCommand(state: WorldState, command: Command, events: SimEvent[] = []): void {
   switch (command.type) {
@@ -79,6 +82,9 @@ export function applyCommand(state: WorldState, command: Command, events: SimEve
       table[command.key] = Math.max(0, Math.min(MAX_LEVEL + 0.999, command.xp));
       return;
     }
+    case 'forceWeather':
+      if (FORCED_WEATHER.includes(command.kind)) forceWeather(state, command.kind);
+      return;
     case 'teleport': {
       const map = getRegionMap(state.seed, state.regionId);
       if (!Number.isFinite(command.x) || !Number.isFinite(command.y)) return;

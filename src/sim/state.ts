@@ -17,7 +17,7 @@ import type { SignStore } from './signs';
  * Version of the WorldState shape. Bump it whenever the shape changes, and add
  * a migration in src/persistence/migrations.ts.
  */
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 export type Gait = 'sneak' | 'walk' | 'run';
 export const GAITS: readonly Gait[] = ['sneak', 'walk', 'run'];
@@ -121,11 +121,69 @@ export interface FollowState {
   lost: boolean;
 }
 
-export interface WeatherState {
+/** One hour of weather. */
+export interface WeatherHour {
+  /** Air temperature, °C. */
+  temp: number;
+  /** Cloud cover, 0..1. */
+  cloud: number;
+  /** Precipitation as water, mm per hour (rain, sleet or snow by the temperature). */
+  precip: number;
   /** Compass bearing the wind blows FROM, in degrees (0 = north). */
   windFromDeg: number;
   /** Wind speed in m/s. */
   windSpeed: number;
+  /** Fog, 0 (none) to 1 (thick). */
+  fog: number;
+}
+
+/** What the weather generator carries from one hour to the next. */
+export interface WeatherGen {
+  /** Temperature departure from the climate normal, °C (slowly wandering). */
+  anomaly: number;
+  /** Fair-weather wind and cloud, which fronts disturb. */
+  windFromDeg: number;
+  windSpeed: number;
+  cloud: number;
+  /** Moisture in the air near the ground, 0..1: makes fog. */
+  damp: number;
+  /** Whether today's early morning tends to fog, 0..1 (drawn at midnight). */
+  fogDay: number;
+  /** When the next front's rain or snow starts, and how long and heavy it is. */
+  frontAt: number;
+  frontHours: number;
+  frontMm: number;
+  /** Temperature change behind it, °C (cold fronts are negative). */
+  frontShift: number;
+}
+
+/** The ground across the region: a few numbers, scaled per terrain where it matters. */
+export interface GroundState {
+  /** Snow depth in the open, cm. */
+  snowCm: number;
+  /** How hard the snow's surface is frozen, 0..1. */
+  crust: number;
+  /** Melt water in the snow, 0..1; it freezes into a crust. */
+  snowWet: number;
+  /** How wet the bare ground and leaves are, 0..1. */
+  wet: number;
+  /** How frozen the bare ground and leaves are, 0..1. */
+  frozen: number;
+  /** When the latest snowfall began and ended (0 = none yet). */
+  snowStartedAt: number;
+  snowEndedAt: number;
+  /** Rain or new snow washed out the player's ground scent laid before this time. */
+  washedAt: number;
+}
+
+export interface WeatherState extends WeatherHour {
+  /** Hourly weather from the start of the current hour, a week ahead. The current hour is ahead[0]. */
+  ahead: WeatherHour[];
+  /** Start time of ahead[0]. */
+  aheadFrom: number;
+  /** Generator state after the last hour in `ahead`. */
+  gen: WeatherGen;
+  ground: GroundState;
 }
 
 /** What an animal is doing. */

@@ -25,16 +25,17 @@ import {
 } from './animals';
 import { applyCommand, type Command } from './commands';
 import type { SimEvent } from './events';
+import { updateGround } from './ground';
 import { updateHunting } from './hunting';
 import { initialKnowledge } from './knowledge';
 import type { PlayerCues } from './perception';
 import { advancePlayer } from './player';
 import { getRegionMap, type RegionMap } from './region';
-import { createSignStore, decaySigns } from './signs';
+import { createSignStore, decaySigns, weatherSigns } from './signs';
 import type { WorldState } from './state';
 import { noiseRadiusM, playerNoise, playerVisibility, scentCone } from './stealth';
 import { confirmSightings, updateTracking } from './tracking';
-import { initialWeather, updateWeatherHourly } from './weather';
+import { advanceWeather, initialWeather, soundMasking, weatherSight } from './weather';
 
 export type { SimEvent } from './events';
 
@@ -62,13 +63,14 @@ function buildWorld(seed: number, scenario: Scenario): WorldState {
   const rng = createStreams(seed);
   const map = getRegionMap(seed >>> 0, scenario.regionId);
   const arrival = fromCalendar(scenario.start);
+  const start = arrival - WARM_UP_SECONDS;
   const state: WorldState = {
     seed: seed >>> 0,
-    time: arrival - WARM_UP_SECONDS,
+    time: start,
     tick: 0,
     rng,
     regionId: scenario.regionId,
-    weather: initialWeather(rng.weather),
+    weather: initialWeather(rng.weather, start),
     player: {
       x: map.spawn.x,
       y: map.spawn.y,
@@ -143,16 +145,20 @@ function advance(
     if (player.bow && player.gait !== 'sneak') player.gait = 'sneak';
     const x0 = player.x;
     const y0 = player.y;
-    advancePlayer(player, map, dt);
+    advancePlayer(player, map, dt, state.weather.ground);
     player.walked += Math.hypot(player.x - x0, player.y - y0);
     markScentTrail(state, map, state.player);
     cues = {
       x: state.player.x,
       y: state.player.y,
-      noiseRadius: noiseRadiusM(playerNoise(state.player, map), state.weather.windSpeed),
+      noiseRadius: noiseRadiusM(
+        playerNoise(state.player, map, state.weather.ground),
+        soundMasking(state.weather),
+      ),
       visibility: drawingVisibility(state, map, light),
       scent: scentCone(state.weather),
       light,
+      sight: weatherSight(state.weather),
     };
   }
   updateAnimals(state, map, dt, events, cues);
@@ -174,7 +180,11 @@ function advance(
 
 function onHourStarted(state: WorldState, time: GameTime, events: SimEvent[]): void {
   events.push({ type: 'hourStarted', time });
-  updateWeatherHourly(state.weather, state.rng.weather);
+  // The hour that just ended leaves its mark on the ground and the signs on it.
+  const { weather } = state;
+  const change = updateGround(weather.ground, weather, time);
+  weatherSigns(state.signs, change.rainMm, change.newSnowCm, change.meltCm);
+  advanceWeather(weather, time, state.rng.weather);
   decaySigns(state.signs, 1);
   if (time % SECONDS_PER_DAY === 0) onDayStarted(state, time, events);
 }

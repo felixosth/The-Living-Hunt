@@ -4,9 +4,20 @@
  */
 import { SPECIES } from '../content/species';
 import { chance, nextRange, type RngState } from '../core/rng';
+import { SNOW_PRINT_CM, snowAt } from './ground';
 import { coverAt, groundAt, type RegionMap } from './region';
-import { addSign, PrintGait, SIGN_LIFETIME_H, SignKind, type SignStore } from './signs';
-import type { Animal } from './state';
+import { addSign, PrintGait, SIGN_LIFETIME_H, SignFlag, SignKind, type SignStore } from './signs';
+import type { Animal, GroundState } from './state';
+
+/** Hours a print in snow lasts, unless new snow or a thaw takes it first. */
+const SNOW_PRINT_LIFETIME_H = 96;
+
+/** The InSnow flag if a sign made here lies in snow, else 0. */
+export function snowSign(map: RegionMap, ground: GroundState, x: number, y: number): number {
+  return ground.snowCm >= SNOW_PRINT_CM && snowAt(map, ground, x, y) >= SNOW_PRINT_CM
+    ? SignFlag.InSnow
+    : 0;
+}
 
 /** Distance between recorded prints, per gait (a record stands for a set of four feet). */
 function strideLength(a: Animal): number {
@@ -24,10 +35,14 @@ function printGait(a: Animal): number {
       : PrintGait.Walk;
 }
 
-/** Lay prints along the line the animal just moved, from (x0, y0) to where it is now. */
+/**
+ * Lay prints along the line the animal just moved, from (x0, y0) to where it
+ * is now. Snow takes every print, crisp and clear.
+ */
 export function emitPrints(
   store: SignStore,
   map: RegionMap,
+  ground: GroundState,
   rng: RngState,
   a: Animal,
   x0: number,
@@ -44,8 +59,9 @@ export function emitPrints(
     const back = Math.min(moved, a.stride) / moved;
     const x = a.x - (a.x - x0) * back;
     const y = a.y - (a.y - y0) * back;
-    const ground = groundAt(map, x, y);
-    if (!chance(rng, Math.min(1, ground.softness * 1.6))) continue;
+    const soil = groundAt(map, x, y);
+    const snow = snowSign(map, ground, x, y);
+    if (!snow && !chance(rng, Math.min(1, soil.softness * 1.6))) continue;
     addSign(store, {
       kind: SignKind.Print,
       species: a.species,
@@ -56,8 +72,11 @@ export function emitPrints(
       heading: a.heading,
       detail: printGait(a),
       weight: a.weightKg,
-      integrity: 0.35 + 0.65 * ground.softness,
-      lifetimeH: 4 + (SIGN_LIFETIME_H.print - 4) * ground.softness ** 2,
+      integrity: snow ? 1 : 0.35 + 0.65 * soil.softness,
+      lifetimeH: snow
+        ? SNOW_PRINT_LIFETIME_H
+        : 4 + (SIGN_LIFETIME_H.print - 4) * soil.softness ** 2,
+      flags: snow,
     });
   }
 }
@@ -127,6 +146,8 @@ export function emitBed(store: SignStore, a: Animal, groupSize: number, now: num
 /** Blood along the line a wounded animal just moved, while it still bleeds. */
 export function emitBlood(
   store: SignStore,
+  map: RegionMap,
+  ground: GroundState,
   rng: RngState,
   a: Animal,
   x0: number,
@@ -143,18 +164,23 @@ export function emitBlood(
   for (let d = nextRange(rng, 0, 1); d < moved; d += 1) {
     if (!chance(rng, rate)) continue;
     const k = d / moved;
+    const x = x0 + (a.x - x0) * k + nextRange(rng, -0.3, 0.3);
+    const y = y0 + (a.y - y0) * k + nextRange(rng, -0.3, 0.3);
+    // On snow, blood stays bright until more snow covers it.
+    const snow = snowSign(map, ground, x, y);
     addSign(store, {
       kind: SignKind.Blood,
       species: a.species,
       animal: a.id,
-      x: x0 + (a.x - x0) * k + nextRange(rng, -0.3, 0.3),
-      y: y0 + (a.y - y0) * k + nextRange(rng, -0.3, 0.3),
+      x,
+      y,
       t: now,
       heading: a.heading,
       detail: w.blood,
       weight: a.weightKg,
       integrity: 1,
-      lifetimeH: SIGN_LIFETIME_H.blood,
+      lifetimeH: SIGN_LIFETIME_H.blood * (snow ? 2 : 1),
+      flags: snow,
     });
   }
 }

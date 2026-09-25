@@ -6,8 +6,10 @@
 import { CARRY_CAPACITY_KG } from '../content/gear';
 import { SPECIES_IDS, type SpeciesId } from '../content/species';
 import type { TerrainId } from '../content/terrain';
-import { type GameTime, lightLevel } from '../core/time';
+import { lerp } from '../core/math';
+import { type GameTime, lightLevel, SECONDS_PER_HOUR } from '../core/time';
 import { ALARMED, SUSPICIOUS } from './animals';
+import { snowAt } from './ground';
 import { DRESS_SECONDS, interactPrompt, isHeadDown } from './hunting';
 import { type HandSkill, type Knowledge, level } from './knowledge';
 import { sightlineObstruction } from './perception';
@@ -34,6 +36,14 @@ import {
   scentCone,
 } from './stealth';
 import { type SearchPosture, searchPosture } from './tracking';
+import {
+  almanac,
+  describeGround,
+  describeSky,
+  type PrecipType,
+  precipType,
+  soundMasking,
+} from './weather';
 
 export type Alertness = 'unaware' | 'suspicious' | 'alarmed' | 'fleeing';
 
@@ -72,6 +82,8 @@ export interface SignView {
   /** Left by the animal whose trail you are following. */
   onTrail: boolean;
   inspected: boolean;
+  /** Made in snow. */
+  inSnow: boolean;
 }
 
 export interface KnowledgeView {
@@ -115,6 +127,30 @@ export interface BowView {
   looking: boolean;
 }
 
+export interface WeatherView {
+  /** Eased through the hour towards the next, for smooth drawing. */
+  temp: number;
+  cloud: number;
+  /** mm of water per hour. */
+  precip: number;
+  precipType: PrecipType;
+  fog: number;
+  /** "Light snow", "Overcast", ... */
+  sky: string;
+  /** "6 cm of snow", "frozen ground", ... or null for plain ground. */
+  ground: string | null;
+  /** Snow depth in the open, and where you stand, cm. */
+  snowCm: number;
+  snowHere: number;
+  crust: number;
+  wet: number;
+  frozen: number;
+  /** When the latest snowfall stopped (0 = none yet): older prints lie under it. */
+  snowEndedAt: number;
+  /** Einar's almanac for the next two days. */
+  outlook: string[];
+}
+
 export interface Snapshot {
   tick: number;
   time: GameTime;
@@ -147,6 +183,7 @@ export interface Snapshot {
   };
   bow: BowView | null;
   wind: { fromDeg: number; speed: number };
+  weather: WeatherView;
   scent: ScentCone;
   /** Ambient daylight 0..1. */
   light: number;
@@ -240,9 +277,33 @@ function noticedSigns(store: SignStore, following: number | null): SignView[] {
       followed: (flags & SignFlag.Followed) !== 0,
       onTrail: following !== null && store.animal[i] === following,
       inspected: (flags & SignFlag.Inspected) !== 0,
+      inSnow: (flags & SignFlag.InSnow) !== 0,
     });
   }
   return out;
+}
+
+function weatherView(state: WorldState, map: RegionMap): WeatherView {
+  const w = state.weather;
+  const g = w.ground;
+  const next = w.ahead[1] ?? w;
+  const k = Math.min(1, (state.time - w.aheadFrom) / SECONDS_PER_HOUR);
+  return {
+    temp: lerp(w.temp, next.temp, k),
+    cloud: lerp(w.cloud, next.cloud, k),
+    precip: lerp(w.precip, next.precip, k),
+    precipType: precipType(w),
+    fog: lerp(w.fog, next.fog, k),
+    sky: describeSky(w),
+    ground: describeGround(g),
+    snowCm: g.snowCm,
+    snowHere: snowAt(map, g, state.player.x, state.player.y),
+    crust: g.crust,
+    wet: g.wet,
+    frozen: g.frozen,
+    snowEndedAt: g.snowEndedAt,
+    outlook: almanac(w, state.time),
+  };
 }
 
 export interface SnapshotOptions {
@@ -284,7 +345,7 @@ export function makeSnapshot(
   const map = getRegionMap(state.seed, state.regionId);
   const ground = groundAt(map, player.x, player.y);
   const light = lightLevel(state.time);
-  const noise = playerNoise(player, map);
+  const noise = playerNoise(player, map, state.weather.ground);
   return {
     tick: state.tick,
     time: state.time,
@@ -300,7 +361,7 @@ export function makeSnapshot(
       terrain: ground.terrain,
       onTrail: ground.trail,
       noise,
-      noiseRadius: noiseRadiusM(noise, state.weather.windSpeed),
+      noiseRadius: noiseRadiusM(noise, soundMasking(state.weather)),
       visibility: playerVisibility(player, map, light),
       arrows: player.arrows,
       load: player.load,
@@ -314,6 +375,7 @@ export function makeSnapshot(
     },
     bow: bowView(state, map),
     wind: { fromDeg: state.weather.windFromDeg, speed: state.weather.windSpeed },
+    weather: weatherView(state, map),
     scent: scentCone(state.weather),
     light,
     animals: state.animals

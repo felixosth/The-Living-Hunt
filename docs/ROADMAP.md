@@ -56,7 +56,7 @@
 - **Knowledge v1:** species and sign-literacy tracks, learning by confirmation, journal v1 (bestiary, map pins, auto-notes).
 - Danger: wolf aggression when cornered or starving, injuries, warmth, camping and fire.
 
-**Status: planned** (see the [M2 plan](M2_PLAN.md)).
+**Status: in progress.** Step 1, weather and snow, is done (see the [M2 plan](M2_PLAN.md)).
 
 **Fun gate:** the first snowfall visibly changes how you hunt. A trap line is a viable alternative to stalking. Your readings get noticeably better over one session.
 
@@ -166,4 +166,4 @@ Anything not in this table waits for the backlog.
 
 ## Where to start
 
-M0 and M1 are done. Next is **M2**, starting with weather and snow (see the [M2 plan](M2_PLAN.md)).
+M0 and M1 are done. **M2** is under way: weather and snow are in, and the red fox and traps are next (see the [M2 plan](M2_PLAN.md)).

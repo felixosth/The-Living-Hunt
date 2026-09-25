@@ -4,9 +4,10 @@
  * World drawing units are "world pixels": PX_PER_M per metre. The camera zoom
  * scales the world and overlay containers together.
  *
- * Layers, bottom to top: ground (baked terrain and trails), tree shadows,
- * agents (the player), canopies (faded around the player) and the cabin roof,
- * then the air (wind and your scent) and arrows in flight.
+ * Layers, bottom to top: ground (baked terrain and trails), snow lying on
+ * it, your footprints, found signs, tree shadows, agents (the player),
+ * canopies (faded around the player) and the cabin roof, then the air (wind,
+ * rain and snow) and arrows in flight. Fog closes in over all of it.
  * The overlay above them is not darkened at night; it holds debug drawings.
  */
 import {
@@ -20,6 +21,7 @@ import {
   Sprite,
   Texture,
 } from 'pixi.js';
+import { terrainDef } from '../content/terrain';
 import { hash32 } from '../core/hash';
 import { clamp, lerp, lerpAngle } from '../core/math';
 import type { SoundKind } from '../sim/events';
@@ -29,6 +31,7 @@ import { AirLayer } from './air';
 import { AnimalLayer } from './animals';
 import { ArrowFlights, type ArrowShot } from './arrows';
 import { ScreenCues } from './cues';
+import { Footprints } from './footprints';
 import { COLORS, TERRAIN_RGB } from './palette';
 import { SignLayer } from './signs';
 
@@ -37,6 +40,8 @@ extensions.add(CullerPlugin);
 export const PX_PER_M = 16;
 /** Terrain texture resolution: texels per tile. */
 const TEXELS_PER_TILE = 8;
+/** Snow is smooth, so its texture can be coarser. */
+const SNOW_TEXELS = 4;
 /** Trees are grouped in square chunks so off-screen ones can be culled. */
 const TREE_CHUNK_M = 32;
 const MIN_ZOOM = 0.3;
@@ -63,6 +68,14 @@ export class Renderer {
   private world = new Container();
   private overlay = new Container();
   private groundLayer = new Container();
+  private snowLayer = new Container();
+  /** Snow lying in patches (a dusting) and all over, faded in with the depth. */
+  private snowPatchy: Sprite | null = null;
+  private snowFull: Sprite | null = null;
+  private footprintLayer = new Container();
+  private footprints: Footprints;
+  /** Fog and thick snowfall, drawn in screen space round the player. */
+  private haze = new Graphics();
   private shadowLayer = new Container();
   private signLayer = new Container();
   private signs: SignLayer;
@@ -94,6 +107,8 @@ export class Renderer {
     this.app = app;
     this.world.addChild(
       this.groundLayer,
+      this.snowLayer,
+      this.footprintLayer,
       this.signLayer,
       this.shadowLayer,
       this.agentLayer,
@@ -103,8 +118,9 @@ export class Renderer {
     this.agentLayer.addChild(this.player);
     this.air = new AirLayer(this.airLayer);
     this.arrows = new ArrowFlights(this.airLayer);
+    this.footprints = new Footprints(this.footprintLayer);
     this.overlay.addChild(this.debug);
-    app.stage.addChild(this.world, this.overlay);
+    app.stage.addChild(this.world, this.haze, this.overlay);
     this.cues = new ScreenCues(app.stage);
     this.player.addChild(drawPlayer());
     this.animals = new AnimalLayer(this.agentLayer, this.overlay);
@@ -141,6 +157,13 @@ export class Renderer {
     this.faded.clear();
 
     this.groundLayer.addChild(bakeGround(map, seed));
+    for (const child of this.snowLayer.removeChildren()) {
+      child.destroy({ texture: true, textureSource: true });
+    }
+    this.snowPatchy = bakeSnow(map, seed, true);
+    this.snowFull = bakeSnow(map, seed, false);
+    this.snowLayer.addChild(this.snowPatchy, this.snowFull);
+    this.footprints.clear();
     for (const g of drawShadows(map)) this.shadowLayer.addChild(g);
     this.buildCanopies(map);
     this.canopyLayer.addChild(drawCabin(map));
@@ -173,6 +196,8 @@ export class Renderer {
       layer.position.set(ox - x * this.zoom, oy - y * this.zoom);
     }
 
+    this.updateSnow(curr);
+    this.footprints.update(curr);
     const seen = this.animals.update(prev, curr, alpha, this.zoom);
     this.signs.update(curr, this.zoom, performance.now());
     this.fadeCanopies([{ x: pxM, y: pyM }, ...seen]);
@@ -205,15 +230,68 @@ export class Renderer {
     );
 
     // Darken by tinting the whole world (a multiply), not with an overlay pass.
-    const dark = 1 - lerp(prev.light, curr.light, alpha);
-    const [r, g, b] = NIGHT_TINT.map((night) => Math.round(255 * lerp(1, night, dark))) as [
-      number,
-      number,
-      number,
-    ];
+    // Heavy cloud dims the day; snow on the ground lightens the night.
+    const light = lerp(prev.light, curr.light, alpha);
+    const { cloud, snowCm } = curr.weather;
+    const lit = light * (1 - 0.28 * cloud);
+    const dark = (1 - lit) * (1 - 0.3 * Math.min(1, snowCm / 5) * (1 - light));
+    const tint = NIGHT_TINT.map((night) => lerp(1, night, dark)) as [number, number, number];
+    const [r, g, b] = tint.map((k) => Math.round(255 * k)) as [number, number, number];
     this.world.tint = (r << 16) | (g << 8) | b;
+    this.drawHaze(curr, width / 2 - this.look.x, height / 2 - this.look.y, width, height, tint);
 
     this.app.render();
+  }
+
+  /** Fade the lying snow in with its depth: a patchy dusting first, then all over. */
+  private updateSnow(s: Snapshot): void {
+    const cm = s.weather.snowCm;
+    if (this.snowPatchy) this.snowPatchy.alpha = clamp(cm / 1.5, 0, 1) * 0.9;
+    if (this.snowFull) this.snowFull.alpha = clamp((cm - 1) / 6, 0, 1) * 0.92;
+  }
+
+  /**
+   * Fog, and the grey of thick snowfall, closing in round the player: clear
+   * close by, thickening to a wall at the edge of sight.
+   */
+  private drawHaze(
+    s: Snapshot,
+    cx: number,
+    cy: number,
+    width: number,
+    height: number,
+    tint: [number, number, number],
+  ): void {
+    const g = this.haze;
+    g.clear();
+    const { fog, precip, precipType } = s.weather;
+    const falling =
+      precipType === 'snow'
+        ? 0.45 * Math.min(1, precip / 2)
+        : precipType === 'none'
+          ? 0
+          : 0.18 * Math.min(1, precip / 3);
+    const thick = Math.max(fog, falling);
+    if (thick < 0.03) return;
+    const sightM = 150 * (1 - 0.7 * thick);
+    const px = PX_PER_M * this.zoom;
+    const r1 = sightM * px;
+    const r0 = 0.3 * r1;
+    const peak = Math.min(0.9, thick * 1.05);
+    const color = COLORS.fog.map((c, i) => Math.round(c * (tint[i] as number))) as number[];
+    const fill = ((color[0] as number) << 16) | ((color[1] as number) << 8) | (color[2] as number);
+    const RINGS = 24;
+    for (let i = 0; i < RINGS; i++) {
+      const inner = lerp(r0, r1, i / RINGS);
+      const outer = lerp(r0, r1, (i + 1) / RINGS);
+      const a = peak * ((i + 0.5) / RINGS) ** 1.4;
+      g.circle(cx, cy, outer).fill({ color: fill, alpha: a }).circle(cx, cy, inner).cut();
+    }
+    const far = Math.hypot(width, height) * 2;
+    g.rect(cx - far, cy - far, 2 * far, 2 * far)
+      .fill({ color: fill, alpha: peak })
+      .circle(cx, cy, r1)
+      .cut();
   }
 
   /** Show an arrow flying from the bow to where it ends up. */
@@ -467,6 +545,80 @@ function bakeGround(map: RegionMap, seed: number): Sprite {
   });
   const sprite = new Sprite(new Texture({ source }));
   sprite.scale.set((map.tileSize * PX_PER_M) / TEXELS_PER_TILE);
+  return sprite;
+}
+
+/**
+ * Where snow lies, as a white texture over the ground: full in the open,
+ * thinner under spruce, none on water, and trodden thin along the game
+ * trails. The patchy version is a first dusting in the hollows.
+ */
+function bakeSnow(map: RegionMap, seed: number, patchy: boolean): Sprite {
+  const w = map.width * SNOW_TEXELS;
+  const h = map.height * SNOW_TEXELS;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  const image = ctx.createImageData(w, h);
+  const px = image.data;
+  const salt = hash32(seed, 'snow-texture');
+  const [sr, sg, sb] = COLORS.snow;
+  // Coarse noise, bilinear between per-tile values, for the dusting's patches.
+  const corner = (tx: number, ty: number) => (hash32(salt, tx, ty) & 1023) / 1023;
+  for (let ty = 0; ty < map.height; ty++) {
+    for (let tx = 0; tx < map.width; tx++) {
+      const catchK = terrainDef(map.terrain[ty * map.width + tx] as number).snowCatch;
+      const c00 = corner(tx, ty);
+      const c10 = corner(tx + 1, ty);
+      const c01 = corner(tx, ty + 1);
+      const c11 = corner(tx + 1, ty + 1);
+      for (let sy = 0; sy < SNOW_TEXELS; sy++) {
+        const py = ty * SNOW_TEXELS + sy;
+        const fy = sy / SNOW_TEXELS;
+        for (let sx = 0; sx < SNOW_TEXELS; sx++) {
+          const pxX = tx * SNOW_TEXELS + sx;
+          const fx = sx / SNOW_TEXELS;
+          const n = lerp(lerp(c00, c10, fx), lerp(c01, c11, fx), fy);
+          const grain = ((hash32(salt, pxX, py) & 255) / 255 - 0.5) * 0.08;
+          const cover = patchy ? clamp((n - 0.45) * 5, 0, 1) : 1;
+          const i = (py * w + pxX) * 4;
+          px[i] = sr * (1 + grain);
+          px[i + 1] = sg * (1 + grain);
+          px[i + 2] = sb * (1 + grain);
+          px[i + 3] = 255 * catchK * cover;
+        }
+      }
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  // Trodden trails show through.
+  const scale = SNOW_TEXELS / map.tileSize;
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.lineWidth = 0.9 * scale;
+  for (const line of map.trails) {
+    const pts = smooth(line, 2);
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i += 2) {
+      const x = (pts[i] as number) * scale;
+      const y = (pts[i + 1] as number) * scale;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  const source = new CanvasSource({
+    resource: canvas,
+    autoGenerateMipmaps: true,
+    scaleMode: 'linear',
+  });
+  const sprite = new Sprite(new Texture({ source }));
+  sprite.scale.set((map.tileSize * PX_PER_M) / SNOW_TEXELS);
+  sprite.alpha = 0;
   return sprite;
 }
 

@@ -15,7 +15,8 @@ const FADE_IN_MS = 700;
 
 function drawGlyph(g: Graphics, s: SignView, visibility: number): void {
   const alpha = (0.35 + 0.65 * Math.min(1, s.integrity)) * visibility;
-  const ink = { color: COLORS.ink, alpha };
+  // Prints in snow are blue-grey hollows rather than dark marks.
+  const ink = { color: s.inSnow && s.kind === 'print' ? COLORS.snowPrint : COLORS.ink, alpha };
   const cos = Math.cos(s.heading);
   const sin = Math.sin(s.heading);
   // Local (forward, right) in metres → world pixels.

@@ -4,8 +4,9 @@
  */
 import { CARRY_CAPACITY_KG } from '../content/gear';
 import { clamp, degToRad } from '../core/math';
+import { footingNoise } from './ground';
 import { coverAt, groundAt, type RegionMap } from './region';
-import type { Gait, PlayerState, WeatherState } from './state';
+import type { Gait, GroundState, PlayerState, WeatherHour } from './state';
 
 /** Footstep noise per gait on meadow grass (1 = walking). */
 export const GAIT_NOISE: Record<Gait, number> = { sneak: 0.18, walk: 1, run: 2.6 };
@@ -22,16 +23,23 @@ export function isMoving(player: PlayerState): boolean {
   return player.moveX !== 0 || player.moveY !== 0;
 }
 
-/** Current footstep noise level (0 when standing still). */
-export function playerNoise(player: PlayerState, map: RegionMap): number {
+/**
+ * Current footstep noise level (0 when standing still). The state of the
+ * ground counts: crust and frozen leaves are loud, new snow is quiet.
+ */
+export function playerNoise(player: PlayerState, map: RegionMap, ground?: GroundState): number {
   if (!isMoving(player)) return 0;
   const burden = 1 + 0.5 * Math.min(1, player.load / CARRY_CAPACITY_KG);
-  return GAIT_NOISE[player.gait] * groundAt(map, player.x, player.y).noise * burden;
+  const footing = ground ? footingNoise(map, ground, player.x, player.y) : 1;
+  return GAIT_NOISE[player.gait] * groundAt(map, player.x, player.y).noise * footing * burden;
 }
 
-/** Distance in metres at which a noise can be heard; wind masks it. */
-export function noiseRadiusM(noise: number, windSpeed: number): number {
-  return (noise * NOISE_RANGE_M) / (1 + windSpeed / 8);
+/**
+ * Distance in metres at which a noise can be heard. Wind and rain mask it;
+ * `masking` is in wind-speed units (see weather's soundMasking).
+ */
+export function noiseRadiusM(noise: number, masking: number): number {
+  return (noise * NOISE_RANGE_M) / (1 + masking / 8);
 }
 
 /** How visible the player is, 0..1, before distance and line of sight. */
@@ -57,7 +65,7 @@ export interface ScentCone {
 /** Below this wind speed (m/s) scent pools around the player instead of drifting. */
 const CALM_WIND = 0.5;
 
-export function scentCone(weather: WeatherState): ScentCone {
+export function scentCone(weather: Pick<WeatherHour, 'windFromDeg' | 'windSpeed'>): ScentCone {
   // Bearing the wind blows TO, converted from compass (0 = north) to screen angle.
   const angle = degToRad(weather.windFromDeg + 180 - 90);
   if (weather.windSpeed < CALM_WIND) return { angle, halfAngle: Math.PI, range: 30 };

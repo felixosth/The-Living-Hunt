@@ -27,6 +27,10 @@ export interface DailySample {
   time: GameTime;
   windFromDeg: number;
   windSpeed: number;
+  /** Temperature at midnight, °C, and the day's rain and snow (water, mm). */
+  temp: number;
+  precipMm: number;
+  snowCm: number;
   daylightHours: number;
   playerX: number;
   playerY: number;
@@ -63,6 +67,7 @@ export function runHeadless({
   const activity: RunResult['activity'] = {};
   const daily: DailySample[] = [];
   let steps = 0;
+  let precipToday = 0;
 
   const t0 = performance.now();
   while (state.time < endTime) {
@@ -74,6 +79,7 @@ export function runHeadless({
     const dt = Math.min(stepSeconds, endTime - state.time);
     for (const event of step(state, commands, dt)) {
       eventCounts[event.type] = (eventCounts[event.type] ?? 0) + 1;
+      if (event.type === 'hourStarted') precipToday += state.weather.precip;
       if (event.type === 'hourStarted') {
         const part = dayPart(event.time);
         for (const a of state.animals) {
@@ -89,10 +95,14 @@ export function runHeadless({
           time: event.time,
           windFromDeg: state.weather.windFromDeg,
           windSpeed: state.weather.windSpeed,
+          temp: state.weather.temp,
+          precipMm: Math.round(precipToday * 10) / 10,
+          snowCm: Math.round(state.weather.ground.snowCm),
           daylightHours: daylight(event.time).hours,
           playerX: state.player.x,
           playerY: state.player.y,
         });
+        precipToday = 0;
       }
     }
     steps++;

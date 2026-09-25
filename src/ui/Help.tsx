@@ -12,11 +12,11 @@ const CONTROLS: [string, string][] = [
   ['Space (hold)', 'Hold your breath: steady for a few seconds'],
   ['Q', 'A soft bleat: a walking roe deer stops and looks up for a moment'],
   ['E', 'Field-dress, pick up, put down, bring home'],
-  ['J', 'Journal: what you know'],
+  ['J', "Journal: what you know, and Einar's almanac"],
   ['T', 'Wait (10×); stops when something stirs'],
   ['P', 'Pause'],
   ['Mouse wheel', 'Zoom'],
-  ['`', 'Debug panel: god view, skill levels, saves'],
+  ['`', 'Debug panel: god view, weather, skill levels, saves'],
 ];
 
 export function Help() {
@@ -34,6 +34,11 @@ export function Help() {
         Watch the wind: the streaks blow the way your scent drifts, and any animal downwind of you
         will smell you. Move slowly on quiet ground, stay in cover, and read what the animals left
         behind.
+      </p>
+      <p class="card-meta">
+        Watch the weather too. Rain washes out old trails and your scent, and hides your footsteps.
+        New snow buries everything, then takes every print: a trail made after it stopped is fresh.
+        Crusted snow and frozen leaves crunch; soft new snow is quiet.
       </p>
       <table>
         <tbody>

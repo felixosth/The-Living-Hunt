@@ -152,6 +152,12 @@ async function boot(): Promise<void> {
     interact: () => session.enqueue({ type: 'interact' }),
     bleat: () => session.enqueue({ type: 'bleat' }),
     setSkill: (area, key, level) => session.enqueue({ type: 'setKnowledge', area, key, xp: level }),
+    forceWeather: (kind) => session.enqueue({ type: 'forceWeather', kind }),
+    skipHours(hours) {
+      session.skip(hours);
+      snapshot.value = session.curr;
+      showToast(`${formatDate(session.state.time)}, ${formatClock(session.state.time)}`);
+    },
   };
 
   let pendingAim: { u: number; v: number } | null = null;

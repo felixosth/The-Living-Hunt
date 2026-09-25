@@ -61,6 +61,21 @@ export class GameSession {
     return events;
   }
 
+  /**
+   * Developer tool: let `hours` of game time pass at once, standing still
+   * with the bow down. The events are dropped.
+   */
+  skip(hours: number): void {
+    const stop: Command[] = [
+      { type: 'lower' },
+      { type: 'move', x: 0, y: 0, gait: this.state.player.gait },
+    ];
+    for (let i = 0; i < hours * 60; i++) step(this.state, i === 0 ? stop : [], 60);
+    this.pending = [];
+    this.curr = this.snapshot();
+    this.prev = this.curr;
+  }
+
   /** Swap in a different world (new game or loaded save). */
   replaceState(state: WorldState): void {
     this.state = state;

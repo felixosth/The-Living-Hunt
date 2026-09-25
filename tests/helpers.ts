@@ -2,7 +2,7 @@ import { DEFAULT_SCENARIO, type Scenario } from '../src/content/scenarios';
 import { Terrain, type TerrainId, terrainDef } from '../src/content/terrain';
 import type { Poi, RegionMap } from '../src/sim/region';
 import { registerRegion } from '../src/sim/region';
-import type { Animal, WorldState } from '../src/sim/state';
+import type { Animal, WeatherHour, WorldState } from '../src/sim/state';
 import { createWorld } from '../src/sim/world';
 
 /**
@@ -65,6 +65,30 @@ registerRegion('meadow', () => synthMap(128, 128, () => Terrain.Grass));
 export const MEADOW: Scenario = { ...DEFAULT_SCENARIO, id: 'meadow', regionId: 'meadow' };
 export const CENTRE = { x: 128, y: 128 };
 
+/**
+ * Dry, mild, settled weather with a steady wind, from now through the whole
+ * week ahead, on bare ground: so a test isn't at the mercy of a front.
+ */
+export function fair(
+  world: WorldState,
+  wind: Pick<WeatherHour, 'windFromDeg' | 'windSpeed'> = world.weather,
+  hour: Partial<WeatherHour> = {},
+): void {
+  const settled: WeatherHour = {
+    temp: 8,
+    cloud: 0.3,
+    precip: 0,
+    fog: 0,
+    windFromDeg: wind.windFromDeg,
+    windSpeed: wind.windSpeed,
+    ...hour,
+  };
+  const w = world.weather;
+  w.ahead = w.ahead.map(() => ({ ...settled }));
+  Object.assign(w, settled);
+  Object.assign(w.ground, { snowCm: 0, crust: 0, snowWet: 0, wet: 0, frozen: 0, washedAt: 0 });
+}
+
 /** A meadow world holding one animal of `species` borrowed from a real forest. */
 export function lone(species: Animal['species']): { world: WorldState; a: Animal } {
   const world = createWorld(3, MEADOW);
@@ -78,5 +102,6 @@ export function lone(species: Animal['species']): { world: WorldState; a: Animal
     home: { rest: [], feed: [], water: [] },
   });
   world.animals = [a];
+  fair(world);
   return { world, a };
 }

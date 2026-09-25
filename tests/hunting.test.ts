@@ -24,7 +24,7 @@ import {
 import { SignKind, signAt } from '../src/sim/signs';
 import type { Animal, HitZone, WorldState } from '../src/sim/state';
 import { step } from '../src/sim/world';
-import { CENTRE, lone } from './helpers';
+import { CENTRE, fair, lone } from './helpers';
 
 const BROADSIDE = Math.PI / 2;
 
@@ -338,7 +338,7 @@ describe('where the arrow goes', () => {
 /** A deer standing broadside 10 m east of a crouched hunter, the wind in the hunter's face. */
 function setUp(): { world: WorldState; a: Animal } {
   const { world, a } = lone('roe');
-  world.weather = { windFromDeg: 90, windSpeed: 2 };
+  fair(world, { windFromDeg: 90, windSpeed: 2 });
   Object.assign(world.player, { x: CENTRE.x - 10, y: CENTRE.y, moveX: 0, moveY: 0, gait: 'sneak' });
   Object.assign(a, {
     x: CENTRE.x,

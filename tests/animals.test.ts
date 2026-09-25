@@ -7,7 +7,7 @@ import { getRegionMap, isWalkable } from '../src/sim/region';
 import type { Animal } from '../src/sim/state';
 import { createWorld, step } from '../src/sim/world';
 import { runHeadless } from '../tools/sim-runner/headless';
-import { CENTRE, lone, synthMap } from './helpers';
+import { CENTRE, fair, lone, synthMap } from './helpers';
 
 describe('daily routines', () => {
   const run = runHeadless({ seed: 2, days: 4 });
@@ -47,7 +47,7 @@ describe('senses', () => {
     const { world, a } = lone('roe');
     const spot = CENTRE;
     // Wind from the west carries scent east, onto the deer.
-    world.weather = { windFromDeg: 270, windSpeed: 3 };
+    fair(world, { windFromDeg: 270, windSpeed: 3 });
     Object.assign(world.player, { x: spot.x - 40, y: spot.y, moveX: 0, moveY: 0, gait: 'sneak' });
     Object.assign(a, { x: spot.x + 20, y: spot.y, activity: 'feeding', heading: 0 });
     const events = [...step(world, [], 6), ...step(world, [], 6), ...step(world, [], 6)];
@@ -61,7 +61,7 @@ describe('senses', () => {
   it('a deer upwind of a still, crouched hunter never knows', () => {
     const { world, a } = lone('roe');
     const spot = CENTRE;
-    world.weather = { windFromDeg: 90, windSpeed: 3 }; // scent drifts west, away from the deer
+    fair(world, { windFromDeg: 90, windSpeed: 3 }); // scent drifts west, away from the deer
     Object.assign(world.player, { x: spot.x - 30, y: spot.y, moveX: 0, moveY: 0, gait: 'sneak' });
     Object.assign(a, {
       x: spot.x + 20,
@@ -78,7 +78,7 @@ describe('senses', () => {
   it('a deer notices you running at it across a meadow', () => {
     const { world, a } = lone('roe');
     const spot = CENTRE;
-    world.weather = { windFromDeg: 90, windSpeed: 1 };
+    fair(world, { windFromDeg: 90, windSpeed: 1 });
     Object.assign(world.player, { x: spot.x - 45, y: spot.y, gait: 'run' });
     Object.assign(a, { x: spot.x + 15, y: spot.y, activity: 'bedded', until: world.time + 7200 });
     let peak = 0;
@@ -92,7 +92,7 @@ describe('senses', () => {
   it('a hare sits tight, then bursts from its form when you come close', () => {
     const { world, a } = lone('hare');
     const spot = CENTRE;
-    world.weather = { windFromDeg: 90, windSpeed: 2 };
+    fair(world, { windFromDeg: 90, windSpeed: 2 });
     Object.assign(world.player, { x: spot.x - 30, y: spot.y, gait: 'walk' });
     Object.assign(a, { x: spot.x, y: spot.y, activity: 'bedded', until: world.time + 7200 });
     const flushedAt: number[] = [];
@@ -108,7 +108,7 @@ describe('senses', () => {
 
   it('a deer pushed against the edge of the region runs along it and gets away', () => {
     const { world, a } = lone('roe');
-    world.weather = { windFromDeg: 0, windSpeed: 1 };
+    fair(world, { windFromDeg: 0, windSpeed: 1 });
     Object.assign(a, { x: 6, y: CENTRE.y, activity: 'feeding', until: world.time + 7200 });
     Object.assign(world.player, { x: 40, y: CENTRE.y, gait: 'run' });
     const start = { x: a.x, y: a.y };
@@ -126,7 +126,7 @@ describe('senses', () => {
     /** Metres covered in each tenth of a real second after a scare from the west. */
     const run = (heading: number) => {
       const { world, a } = lone('roe');
-      world.weather = { windFromDeg: 0, windSpeed: 1 };
+      fair(world, { windFromDeg: 0, windSpeed: 1 });
       Object.assign(world.player, { x: CENTRE.x - 120, y: CENTRE.y + 100 });
       Object.assign(a, { x: CENTRE.x, y: CENTRE.y, heading, speed: 0, activity: 'feeding' });
       Object.assign(a, { alarmX: CENTRE.x - 30, alarmY: CENTRE.y, until: world.time + 7200 });
@@ -163,7 +163,7 @@ describe('senses', () => {
     const water = map.pois[leader.home.water[0] as number] as { x: number; y: number };
     // Keep the hunter well out of the way.
     Object.assign(world.player, { x: water.x > 256 ? 20 : 490, y: water.y > 256 ? 20 : 490 });
-    world.weather = { windFromDeg: 0, windSpeed: 0.2 };
+    fair(world, { windFromDeg: 0, windSpeed: 0.2 });
     // The leader has nearly finished; the others are still on their way.
     Object.assign(leader, {
       x: water.x,
@@ -194,7 +194,7 @@ describe('senses', () => {
       (a) => a.species === 'roe' && world.animals.some((b) => b.groupId === a.id && b !== a),
     ) as Animal;
     const herd = world.animals.filter((b) => b.groupId === herdLeader.groupId);
-    world.weather = { windFromDeg: 0, windSpeed: 4 };
+    fair(world, { windFromDeg: 0, windSpeed: 4 });
     // Stand just upwind (north) of the leader so the scent pours over the herd.
     Object.assign(world.player, { x: herdLeader.x, y: herdLeader.y - 25, moveX: 0, moveY: 0 });
     for (let i = 0; i < 4; i++) step(world, [], 6);

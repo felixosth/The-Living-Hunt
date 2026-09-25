@@ -50,4 +50,9 @@ export const COLORS = {
   wind: 0xe8ecdf,
   hair: 0xb8a58a,
   noise: 0x9ec3d8,
+  snow: [236, 241, 245] as const,
+  snowPrint: 0x5a6a80,
+  rain: 0xb8c8d4,
+  snowflake: 0xf8fbff,
+  fog: [196, 202, 200] as const,
 };

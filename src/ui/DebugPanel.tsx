@@ -1,8 +1,20 @@
 import { useRef, useState } from 'preact/hooks';
 import { TIME_SCALES } from '../app/session';
 import { terrainDef } from '../content/terrain';
+import type { ForcedWeather } from '../sim/debugWeather';
 import type { KnowledgeArea } from '../sim/knowledge';
 import { controls, type GameActions, godView, perf, snapshot } from './store';
+
+/** Weather you can force, as [kind, label]. */
+const WEATHER: [ForcedWeather, string][] = [
+  ['clear', 'Clear'],
+  ['rain', 'Rain'],
+  ['snowfall', 'Snowfall'],
+  ['snowCover', '+10 cm snow'],
+  ['fog', 'Fog'],
+  ['crust', 'Crust'],
+  ['thaw', 'Thaw'],
+];
 
 /** Every skill you can set, as [area, key, label]. */
 const SKILLS: [KnowledgeArea, string, string][] = [
@@ -23,6 +35,7 @@ export function DebugPanel({ actions }: { actions: GameActions }) {
   const [seedText, setSeedText] = useState('');
   const [hash, setHash] = useState('');
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [weatherOpen, setWeatherOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   if (!s) return null;
 
@@ -133,6 +146,56 @@ export function DebugPanel({ actions }: { actions: GameActions }) {
         />
         <button type="submit">New world</button>
       </form>
+
+      <div class="debug-row">
+        <span class="debug-label">Weather</span>
+        <button
+          type="button"
+          class={weatherOpen ? 'on' : ''}
+          data-testid="weather-toggle"
+          onClick={() => setWeatherOpen(!weatherOpen)}
+        >
+          {weatherOpen ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {weatherOpen && (
+        <div class="debug-skills" data-testid="weather-tools">
+          <div class="debug-row">
+            <span class="debug-label">Now</span>
+            <span>
+              {s.weather.sky}, {s.weather.temp.toFixed(1)} °C · {s.weather.snowCm.toFixed(1)} cm
+              snow · crust {(s.weather.crust * 100).toFixed(0)} % · wet{' '}
+              {(s.weather.wet * 100).toFixed(0)} % · frozen {(s.weather.frozen * 100).toFixed(0)} %
+            </span>
+          </div>
+          <div class="debug-row debug-wrap">
+            <span class="debug-label">Force</span>
+            {WEATHER.map(([kind, label]) => (
+              <button
+                type="button"
+                key={kind}
+                data-testid={`weather-${kind}`}
+                onClick={() => actions.forceWeather(kind)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div class="debug-row">
+            <span class="debug-label">Skip</span>
+            {[1, 6, 24].map((h) => (
+              <button
+                type="button"
+                key={h}
+                data-testid={`skip-${h}`}
+                onClick={() => actions.skipHours(h)}
+              >
+                {h} h
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div class="debug-row">
         <span class="debug-label">Skills</span>

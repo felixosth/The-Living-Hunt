@@ -25,6 +25,8 @@ export interface TerrainDef {
   softness: number;
   /** Relative cost of walking here for animal pathfinding. */
   navCost: number;
+  /** How much of the snow in the open lies here (less under spruce, none on water). */
+  snowCatch: number;
 }
 
 export const TERRAIN: readonly TerrainDef[] = [
@@ -37,6 +39,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0.1,
     softness: 0.45,
     navCost: 1,
+    snowCatch: 1,
   },
   {
     id: Terrain.Forest,
@@ -47,6 +50,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0.35,
     softness: 0.35,
     navCost: 1.15,
+    snowCatch: 0.55,
   },
   {
     id: Terrain.Thicket,
@@ -57,6 +61,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0.75,
     softness: 0.3,
     navCost: 1.6,
+    snowCatch: 0.7,
   },
   {
     id: Terrain.Mud,
@@ -67,6 +72,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0,
     softness: 1,
     navCost: 1.5,
+    snowCatch: 1,
   },
   {
     id: Terrain.Shallows,
@@ -77,6 +83,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0,
     softness: 0,
     navCost: 2.5,
+    snowCatch: 0,
   },
   {
     id: Terrain.DeepWater,
@@ -87,6 +94,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0,
     softness: 0,
     navCost: Number.POSITIVE_INFINITY,
+    snowCatch: 0,
   },
   {
     id: Terrain.Rock,
@@ -97,6 +105,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 0.1,
     softness: 0.05,
     navCost: 1.5,
+    snowCatch: 0.8,
   },
   {
     id: Terrain.Building,
@@ -107,6 +116,7 @@ export const TERRAIN: readonly TerrainDef[] = [
     cover: 1,
     softness: 0,
     navCost: Number.POSITIVE_INFINITY,
+    snowCatch: 0,
   },
 ];
 

@@ -56,6 +56,12 @@ export function Journal() {
         <span>Bow arm</span>
         <Bar {...k.hands.bow} />
       </div>
+      <div class="journal-section">Einar's almanac</div>
+      <div class="almanac" data-testid="almanac">
+        {s.weather.outlook.map((line) => (
+          <div key={line}>{line}</div>
+        ))}
+      </div>
       <p class="card-meta">
         Reading signs teaches a little. Seeing the animal whose trail you read teaches a lot. Every
         arrow you loose steadies your bow arm a little.

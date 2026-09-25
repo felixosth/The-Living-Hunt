@@ -4,10 +4,12 @@
  * Old saves are then upgraded step by step on load.
  */
 import { QUIVER_SIZE } from '../content/gear';
+import type { RngState, RngStreams } from '../core/rng';
 import { initialKnowledge } from '../sim/knowledge';
 import { getRegionMap, isWalkable } from '../sim/region';
 import { createSignStore } from '../sim/signs';
 import { STATE_VERSION } from '../sim/state';
+import { initialWeather } from '../sim/weather';
 import { createWorld } from '../sim/world';
 
 /** Upgrades a state of version N to version N + 1. */
@@ -108,6 +110,21 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
     ...old,
     animals: (old.animals as Record<string, unknown>[]).map((a) => ({ ...a, lookUntil: 0 })),
   }),
+  /**
+   * M2: real weather. A week of it is generated from the save's own weather
+   * stream, keeping the wind as it was for the rest of the hour.
+   */
+  8: (old) => {
+    const rng = old.rng as RngStreams;
+    const stream = [...rng.weather] as RngState;
+    const weather = initialWeather(stream, old.time as number);
+    const wind = old.weather as { windFromDeg: number; windSpeed: number };
+    return {
+      ...old,
+      rng: { ...rng, weather: stream },
+      weather: { ...weather, windFromDeg: wind.windFromDeg, windSpeed: wind.windSpeed },
+    };
+  },
 };
 
 export function migrateState(

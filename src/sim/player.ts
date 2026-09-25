@@ -7,8 +7,9 @@
  * takes a few game hours.
  */
 import { CARRY_CAPACITY_KG } from '../content/gear';
+import { playerSnowPace, snowAt } from './ground';
 import { groundAt, isWalkable, type RegionMap, regionHeightM, regionWidthM } from './region';
-import type { Gait, PlayerState } from './state';
+import type { Gait, GroundState, PlayerState } from './state';
 
 export const GAIT_SPEED_M_PER_MIN: Record<Gait, number> = {
   sneak: 1.8,
@@ -20,7 +21,12 @@ export const GAIT_SPEED_M_PER_MIN: Record<Gait, number> = {
 const SUBSTEP_M = 0.5;
 const EDGE_MARGIN_M = 0.01;
 
-export function advancePlayer(player: PlayerState, map: RegionMap, dtSeconds: number): void {
+export function advancePlayer(
+  player: PlayerState,
+  map: RegionMap,
+  dtSeconds: number,
+  ground?: GroundState,
+): void {
   const { moveX, moveY } = player;
   if ((moveX === 0 && moveY === 0) || player.busy) return;
   player.heading = Math.atan2(moveY, moveX);
@@ -28,8 +34,10 @@ export function advancePlayer(player: PlayerState, map: RegionMap, dtSeconds: nu
   const maxX = regionWidthM(map) - EDGE_MARGIN_M;
   const maxY = regionHeightM(map) - EDGE_MARGIN_M;
   const burden = 1 - 0.35 * Math.min(1, player.load / CARRY_CAPACITY_KG);
+  // Deep snow drags at every step.
+  const snow = ground ? playerSnowPace(snowAt(map, ground, player.x, player.y)) : 1;
   const speed =
-    GAIT_SPEED_M_PER_MIN[player.gait] * groundAt(map, player.x, player.y).speed * burden;
+    GAIT_SPEED_M_PER_MIN[player.gait] * groundAt(map, player.x, player.y).speed * burden * snow;
   const distance = (speed * dtSeconds) / 60;
   const substeps = Math.max(1, Math.ceil(distance / SUBSTEP_M));
   const sx = (moveX * distance) / substeps;

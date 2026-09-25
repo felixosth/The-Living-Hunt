@@ -54,6 +54,7 @@ test('boots, walks, saves and loads', async ({ page }) => {
   // The journal and help open and close.
   await page.keyboard.press('KeyJ');
   await expect(page.getByTestId('journal')).toContainText('roe deer');
+  await expect(page.getByTestId('almanac')).toContainText('Tonight');
   await page.keyboard.press('KeyJ');
   await page.keyboard.press('KeyH');
   await expect(page.getByTestId('help')).toBeVisible();
@@ -67,6 +68,12 @@ test('boots, walks, saves and loads', async ({ page }) => {
   await page.getByTestId('skill-signs-blood-3').click();
   await expect(page.getByTestId('skill-signs-blood-3')).toHaveClass(/on/);
   await page.getByTestId('skills-toggle').click();
+  // So can the weather: new snow shows in the HUD.
+  await expect(page.getByTestId('weather')).toContainText('°C');
+  await page.getByTestId('weather-toggle').click();
+  await page.getByTestId('weather-snowCover').click();
+  await expect(page.getByTestId('weather')).toContainText('cm of snow');
+  await page.getByTestId('weather-toggle').click();
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByTestId('quicksave').click();
   await expect(page.getByTestId('toast')).toContainText('Saved');

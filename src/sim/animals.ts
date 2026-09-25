@@ -18,6 +18,7 @@ import {
   sunAltitudeDeg,
 } from '../core/time';
 import { type SimEvent, SOUND_RANGE_M, type SoundKind } from './events';
+import { snowAt, snowPace } from './ground';
 import { cellCentre, cellOf, downhill, isCellOpen } from './nav';
 import { PERCEPTION_RANGE_M, type PlayerCues, perceivePlayer, playerCanSee } from './perception';
 import {
@@ -30,9 +31,10 @@ import {
   regionHeightM,
   regionWidthM,
 } from './region';
-import { emitBed, emitBlood, emitFeedingSigns, emitPrints } from './signEmission';
+import { emitBed, emitBlood, emitFeedingSigns, emitPrints, snowSign } from './signEmission';
 import { addSign, SIGN_LIFETIME_H, SignKind } from './signs';
 import type { Animal, AnimalHome, HitZone, PlayerState, WorldState, Wound } from './state';
+import { isHeavyRain, soundMasking, weatherSight } from './weather';
 
 export const SUSPICIOUS = 0.3;
 export const ALARMED = 0.7;
@@ -253,9 +255,10 @@ export function updateAnimals(
 function leaveSigns(a: Animal, ctx: Ctx, x0: number, y0: number, was: Animal['activity']): void {
   const { state, map, dt, now } = ctx;
   const rng = state.rng.signs;
-  emitPrints(state.signs, map, rng, a, x0, y0, now);
+  const ground = state.weather.ground;
+  emitPrints(state.signs, map, ground, rng, a, x0, y0, now);
   emitFeedingSigns(state.signs, map, rng, a, dt, now);
-  if (a.wound) emitBlood(state.signs, rng, a, x0, y0, now);
+  if (a.wound) emitBlood(state.signs, map, ground, rng, a, x0, y0, now);
   if (was !== a.activity) {
     if (was === 'bedded' && now - a.since >= 30 * 60) {
       const beds = state.animals.filter(
@@ -283,8 +286,9 @@ export function updateSightings(
   light: number,
   events: SimEvent[],
 ): void {
+  const weather = playerWeatherSight(state, light);
   for (const a of state.animals) {
-    const seen = playerCanSee(state.player, a, map, light, state.time);
+    const seen = playerCanSee(state.player, a, map, light, state.time, weather);
     if (seen && !a.seen) {
       events.push({
         type: 'sighted',
@@ -297,6 +301,12 @@ export function updateSightings(
     }
     a.seen = seen;
   }
+}
+
+/** Fog and falling snow close in the view; snow on the ground lightens a dark night. */
+export function playerWeatherSight(state: WorldState, light: number): number {
+  const snowLit = 1 + 0.5 * (1 - light) * Math.min(1, state.weather.ground.snowCm / 5);
+  return weatherSight(state.weather) * snowLit;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +365,8 @@ function checkScentTrail(a: Animal, ctx: Ctx): void {
   const cx = Math.floor(a.x / SCENT_CELL_M);
   const cy = Math.floor(a.y / SCENT_CELL_M);
   const laid = ctx.state.scentTrail[cy * cols + cx] ?? 0;
-  if (laid === 0) return;
+  // Rain or new snow since washed it out.
+  if (laid === 0 || laid < ctx.state.weather.ground.washedAt) return;
   const strength = 1 - (ctx.now - laid) / SCENT_TRAIL_LIFE;
   if (strength < 0.1) return;
   a.scentCheckedAt = ctx.now;
@@ -421,7 +432,7 @@ export function hearBleat(a: Animal, ctx: Ctx, x: number, y: number): 'stopped' 
   if (a.species !== 'roe' || a.wound || a.activity === 'dead' || a.activity === 'fleeing') {
     return null;
   }
-  const range = BLEAT_RANGE_M / (1 + ctx.state.weather.windSpeed / 8);
+  const range = BLEAT_RANGE_M / (1 + soundMasking(ctx.state.weather) / 8);
   if (Math.hypot(a.x - x, a.y - y) > range) return null;
   a.alarmX = x;
   a.alarmY = y;
@@ -472,7 +483,7 @@ function behave(a: Animal, ctx: Ctx): void {
   if (a.wound) {
     moved = behaveWounded(a, ctx);
   } else if (a.activity === 'fleeing') {
-    moved = flee(a, ctx, runDistance(a, ctx, def.speed.flee));
+    moved = flee(a, ctx, runDistance(a, ctx, def.speed.flee * pace(a, ctx)));
     if (ctx.now >= a.until) {
       a.awareness = 0.45;
       travelTo(a, ctx, chooseRest(a, ctx));
@@ -486,6 +497,13 @@ function behave(a: Animal, ctx: Ctx): void {
     moved = routine(a, ctx);
   }
   a.speed = moved / (ctx.dt / 60);
+}
+
+/** How much deep snow holds it back here (1 = not at all). */
+function pace(a: Animal, ctx: Ctx): number {
+  const g = ctx.state.weather.ground;
+  if (g.snowCm <= 20) return 1;
+  return snowPace(a.species, snowAt(ctx.map, g, a.x, a.y), g.crust);
 }
 
 function leaderOf(a: Animal, ctx: Ctx): Animal | null {
@@ -505,13 +523,18 @@ function routine(a: Animal, ctx: Ctx): number {
 
   switch (a.activity) {
     case 'travelling': {
-      const moved = travel(a, ctx, (def.speed.walk * ctx.dt) / 60);
+      const moved = travel(a, ctx, (def.speed.walk * pace(a, ctx) * ctx.dt) / 60);
       if (arrived(a, ctx)) settle(a, ctx);
       return moved;
     }
     case 'feeding': {
       const moved = graze(a, ctx);
-      if (ctx.now >= a.until) decide(a, ctx);
+      // A downpour sends deer to shelter before long.
+      const drenched =
+        a.species === 'roe' &&
+        isHeavyRain(ctx.state.weather) &&
+        chance(ctx.rng, Math.min(1, ctx.dt / 1800));
+      if (ctx.now >= a.until || drenched) decide(a, ctx);
       return moved;
     }
     case 'drinking':
@@ -558,7 +581,7 @@ function follow(a: Animal, leader: Animal, ctx: Ctx): number {
     pickSpot(a, ctx, leader);
   }
   if (a.activity === 'travelling') {
-    const moved = travel(a, ctx, (def.speed.walk * ctx.dt) / 60);
+    const moved = travel(a, ctx, (def.speed.walk * pace(a, ctx) * ctx.dt) / 60);
     if (arrived(a, ctx)) {
       a.activity = leader.activity === 'travelling' ? 'feeding' : leader.activity;
       pickSpot(a, ctx, leader);
@@ -625,6 +648,12 @@ function decide(a: Animal, ctx: Ctx): void {
   }
 
   const part = dayPart(now);
+  if (isHeavyRain(ctx.state.weather)) {
+    // Heavy rain: lie up under cover and wait it out.
+    if (kind === 'bed' && here) begin(a, ctx, 'bedded', 40, 80);
+    else travelTo(a, ctx, chooseRest(a, ctx));
+    return;
+  }
   if (part === 'day') {
     if (kind === 'bed' && here) {
       if (a.activity === 'bedded') begin(a, ctx, 'feeding', 15, 35);
@@ -792,7 +821,7 @@ function graze(a: Animal, ctx: Ctx): number {
     if (chance(ctx.rng, Math.min(1, 0.15 * (ctx.dt / 60)))) pickSpot(a, ctx, leaderOf(a, ctx));
     return 0;
   }
-  return moveToward(a, ctx.map, a.spotX, a.spotY, (def.speed.graze * ctx.dt) / 60);
+  return moveToward(a, ctx.map, a.spotX, a.spotY, (def.speed.graze * pace(a, ctx) * ctx.dt) / 60);
 }
 
 const FLEE_DIRECTIONS = 16;
@@ -1059,6 +1088,7 @@ function newWound(
  * Struck, it splashes the way it bolts: away from you.
  */
 function addHitSign(a: Animal, ctx: Ctx, blood: BloodType, struck = true, dx = 0, dy = 0): void {
+  const snow = snowSign(ctx.map, ctx.state.weather.ground, a.x + dx, a.y + dy);
   addSign(ctx.state.signs, {
     kind: SignKind.Blood,
     species: a.species,
@@ -1070,7 +1100,8 @@ function addHitSign(a: Animal, ctx: Ctx, blood: BloodType, struck = true, dx = 0
     detail: blood,
     weight: a.weightKg,
     integrity: 1,
-    lifetimeH: SIGN_LIFETIME_H.blood,
+    lifetimeH: SIGN_LIFETIME_H.blood * (snow ? 2 : 1),
+    flags: snow,
   });
 }
 
@@ -1111,7 +1142,7 @@ function behaveWounded(a: Animal, ctx: Ctx): number {
   }
   if (a.activity === 'fleeing') {
     const rule = WOUND_RULES[w.zone as keyof typeof WOUND_RULES];
-    const speed = def.speed.flee * (rule?.speed ?? 1);
+    const speed = def.speed.flee * (rule?.speed ?? 1) * pace(a, ctx);
     const moved = flee(a, ctx, Math.min(w.fleeLeft, runDistance(a, ctx, speed)));
     w.fleeLeft -= moved;
     if (w.fleeLeft <= 0.5 || moved < 1e-3) {

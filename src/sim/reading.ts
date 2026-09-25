@@ -8,8 +8,9 @@ import { SPECIES, type SpeciesId } from '../content/species';
 import { hash32 } from '../core/hash';
 import { compassName, radToDeg } from '../core/math';
 import { nextFloat, seedRng } from '../core/rng';
+import { dayIndex, formatClock } from '../core/time';
 import { type Knowledge, level } from './knowledge';
-import { PrintGait, type SignRecord } from './signs';
+import { PrintGait, SignFlag, type SignRecord } from './signs';
 
 export interface Range {
   lo: number;
@@ -107,6 +108,40 @@ const UNSURE: Record<SpeciesId, Partial<Record<SignRecord['kindName'], string>>>
 export interface ReadingContext {
   /** Whether the player has read another sign of the same animal before. */
   sameAnimalAsBefore: boolean;
+  /** The latest snowfall, which dates anything made in the snow. */
+  snow?: { startedAt: number; endedAt: number; falling: boolean };
+}
+
+/** "about 03:00", "yesterday about 22:00", or null if it was longer ago. */
+function clockWords(t: number, now: number): string | null {
+  const days = dayIndex(now) - dayIndex(t);
+  if (days === 0) return `about ${formatClock(t)}`;
+  if (days === 1) return `yesterday about ${formatClock(t)}`;
+  return null;
+}
+
+/**
+ * What the snow says about when a sign was made: fresh snow is a clock
+ * anyone can read.
+ */
+function snowLine(sign: SignRecord, now: number, snow: ReadingContext['snow']): string | null {
+  if (!snow || !(sign.flags & SignFlag.InSnow) || snow.endedAt === 0) return null;
+  const noun = sign.kindName === 'blood' ? 'the blood' : sign.kindName === 'bed' ? 'it' : 'they';
+  if (snow.falling && sign.t >= snow.endedAt - 3600) {
+    return `Snow is falling into ${noun === 'they' ? 'them' : noun}: made in this snowfall.`;
+  }
+  if (sign.t >= snow.endedAt) {
+    const when = clockWords(snow.endedAt, now);
+    const crisp = sign.kindName === 'blood' ? 'Bright on the new snow' : 'Crisp in the new snow';
+    return when ? `${crisp}: made after the snow stopped, ${when}.` : `${crisp}.`;
+  }
+  if (sign.t >= snow.startedAt) {
+    const from = clockWords(snow.startedAt, now);
+    return from
+      ? `Half filled with snow: made while it was still snowing, after ${from.replace('about ', '')}.`
+      : 'Half filled with snow: made while it was still snowing.';
+  }
+  return null;
 }
 
 export function readSign(
@@ -167,6 +202,9 @@ export function readSign(
     reading.ageH = r;
     lines.push(`About ${formatAge(r)}.`);
   }
+
+  const snowWords = snowLine(sign, now, ctx.snow);
+  if (snowWords) lines.push(snowWords);
 
   // Size, from the print's depth and size, a bed's length or droppings' size.
   const sizeLevel = Math.min(speciesLevel, literacy);
