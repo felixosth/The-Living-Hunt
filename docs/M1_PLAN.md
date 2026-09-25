@@ -6,7 +6,7 @@
 
 ## Status
 
-All four steps are built and deployed; the fun gate needs playtesting. Differences from the plan below:
+Done: all steps are built and deployed, and the fun gate passed after seven rounds of playtesting. Differences from the plan below:
 
 - The shot inset sits in the bottom-right corner. Relative mouse movement nudges the aim across the side view, starting from the middle of the body, so no pointer lock is needed.
 - Every roe deer group has two bedding thickets, and a spooked deer heads for the one furthest from the danger.

@@ -43,7 +43,7 @@
 
 **Fun gate:** going from *first sign found* to *animal recovered* takes 10–20 minutes, and you want to do it again. Wind and stealth decisions clearly matter. There are at least three distinct ways to fail a hunt, and they all feel fair.
 
-**Status: built; the fun gate needs playtesting.** Everything above is in, built in four playable steps (see the [M1 plan](M1_PLAN.md)). Tests cover routines, senses (winded, unseen, flushed), sign readings (property-tested to always contain the truth), trail following, the hit model and a full hunt from shot to cabin. The ways to fail are all there: being winded, heard or seen, a poor shot, pushing a wounded animal, and losing the trail. What's left is tuning the numbers by playing.
+**Status: done; the fun gate passed.** Everything above is in, built in four playable steps and tuned over seven rounds of playtesting (see the [M1 plan](M1_PLAN.md)). Tracking, stalking and the shot feel good, and every way to fail has a visible cause: the wind is drawn on the map, the aim sways and settles, a deer on edge can jump the string, and every miss says why. Tests cover routines, senses, sign readings (property-tested to always contain the truth), trail following, the shot and a full hunt from shot to cabin.
 
 ---
 
@@ -55,6 +55,8 @@
 - **Traps:** snare, foothold, deadfall; bait; checking, spoiled catches, stolen catches.
 - **Knowledge v1:** species and sign-literacy tracks, learning by confirmation, journal v1 (bestiary, map pins, auto-notes).
 - Danger: wolf aggression when cornered or starving, injuries, warmth, camping and fire.
+
+**Status: planned** (see the [M2 plan](M2_PLAN.md)).
 
 **Fun gate:** the first snowfall visibly changes how you hunt. A trap line is a viable alternative to stalking. Your readings get noticeably better over one session.
 
@@ -164,4 +166,4 @@ Anything not in this table waits for the backlog.
 
 ## Where to start
 
-M0 and M1 are built. The next step is to **playtest M1 against its fun gate** and tune it, then start **M2**.
+M0 and M1 are done. Next is **M2**, starting with weather and snow (see the [M2 plan](M2_PLAN.md)).

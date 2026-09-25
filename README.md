@@ -65,7 +65,8 @@ The simulation (`src/sim`, `src/core`, `src/content`) is pure and deterministic:
 | [Technical Plan](docs/TECHNICAL_PLAN.md) | Stack (TypeScript, Vite, PixiJS, Preact), a pure deterministic simulation core, two-scale macro/micro simulation, the causal chronicle, data models, the ecology and economy models, tooling, testing, performance budgets |
 | [Roadmap](docs/ROADMAP.md) | Milestones M0–M7 with fun gates, frozen v0.1 scope, backlog, risks |
 | [M1 plan](docs/M1_PLAN.md) | How the fun prototype works: the hunt it must deliver, mechanics, numbers, technical choices |
+| [M2 plan](docs/M2_PLAN.md) | The next milestone: weather and snow, the fox and traps, wolves and ravens, warmth and danger |
 
 ## Status
 
-**M0: Foundations** and **M1: "Tracks in the mud"** are built. M1 is the fun prototype: one forest region (Granåsen) with fords, game trails and Einar's cabin; roe deer and mountain hares with daily routines, senses and awareness; signs you scan for, read and follow, with knowledge that improves as you confirm readings; and the bow, with a shot inset, an anatomy-based hit model, blood trails, field dressing, carrying and a hunt summary. See the [M1 plan](docs/M1_PLAN.md) for the mechanics and numbers. Next is **M2: "The weather turns"**.
+**M0: Foundations** and **M1: "Tracks in the mud"** are done. M1 is the fun prototype: one forest region (Granåsen) with fords, game trails and Einar's cabin; roe deer and mountain hares with daily routines, senses and awareness; signs you scan for, read and follow, with knowledge that improves as you confirm readings; and the bow, with a shot inset, an anatomy-based hit model, blood trails, field dressing, carrying and a hunt summary. See the [M1 plan](docs/M1_PLAN.md) for the mechanics and numbers. Next is **M2: "The weather turns"** ([plan](docs/M2_PLAN.md)).
