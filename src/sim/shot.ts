@@ -13,6 +13,9 @@ import { GAME_SECONDS_PER_REAL_SECOND as REAL } from '../core/time';
 import { MAX_LEVEL } from './knowledge';
 import type { BowState, HitZone } from './state';
 
+/** Chance per unit of brush in the line that a twig turns the arrow. */
+export const TWIG_TURNS = 0.9;
+
 /** You can't draw on anything further than this. */
 export const BOW_RANGE_M = 50;
 /*
@@ -132,6 +135,23 @@ export interface ShotResult {
 
 const LETHALITY: PartId[] = ['heart', 'lungs', 'liver', 'gut', 'ham'];
 
+const OUTER: readonly PartId[] = ['body', 'neck', 'head', 'leg'];
+
+/** Whether an arrow crossing the view plane at (u, v) strikes the animal at all. */
+export function strikesBody(
+  species: SpeciesId,
+  theta: number,
+  u: number,
+  v: number,
+  headDown = false,
+): boolean {
+  return anatomyFor(species, headDown).some((part) => {
+    if (!OUTER.includes(part.id)) return false;
+    const t = pierce(part, theta, u, v);
+    return t !== null && t[1] > 0;
+  });
+}
+
 /** How far an arrow gets through a roe deer, metres of body: less at long range. */
 export function penetration(species: SpeciesId, distance: number): number {
   const far = Math.min(1, Math.max(0, distance) / BOW_RANGE_M);
@@ -161,7 +181,7 @@ export function castArrow(
     .map((part) => ({ part, t: pierce(part, theta, u, v) }))
     .filter((h): h is { part: Part; t: [number, number] } => h.t !== null && h.t[1] > 0)
     .sort((x, y) => x.t[0] - y.t[0]);
-  const outer = hits.find((h) => ['body', 'neck', 'head', 'leg'].includes(h.part.id));
+  const outer = hits.find((h) => OUTER.includes(h.part.id));
   if (!outer) return { zone: 'miss', passThrough: true, tainted: false };
 
   switch (outer.part.id) {

@@ -1,6 +1,7 @@
 /** UI state as signals. The app writes them; components read them. */
 import { signal } from '@preact/signals';
 import type { TimeScale } from '../app/session';
+import type { MissReview } from '../sim/events';
 import type { Reading } from '../sim/reading';
 import { MAX_RELEASE_LEAD_S } from '../sim/shot';
 import type { Snapshot } from '../sim/snapshot';
@@ -42,6 +43,12 @@ export interface Toast {
 }
 
 export const snapshot = signal<Snapshot | null>(null);
+
+/** How long the shot inset shows where a missed arrow went, ms. */
+export const MISS_REVIEW_MS = 3500;
+
+/** The last missed arrow and when (performance.now()), for the shot inset to review. */
+export const lastMiss = signal<{ review: MissReview; at: number } | null>(null);
 
 /** When the current snapshot arrived (performance.now()). */
 export const snapshotClock = { at: 0 };

@@ -3,6 +3,7 @@ import { ANATOMY, type PartId } from '../src/content/anatomy';
 import { seedRng } from '../src/core/rng';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../src/core/time';
 import { animalContext, applyHit } from '../src/sim/animals';
+import type { MissReview, SimEvent } from '../src/sim/events';
 import { getRegionMap } from '../src/sim/region';
 import {
   angleName,
@@ -280,6 +281,36 @@ describe('where the arrow goes', () => {
     expect(hare.a.lookUntil).toBe(0);
   });
 
+  it('a missed arrow says why: it walked on, or the crosshair was off it', () => {
+    // Aimed at its haunch as it walks briskly: the arrow passes behind it.
+    const walked = setUp();
+    const behind = missOf(
+      shoot(walked.world, walked.a, 'ham', { walking: 8, at: { u: -0.35, v: 0.52 } }),
+    );
+    expect(behind?.cause).toBe('walked');
+    // Aimed well past its nose at a standing deer: simply wide.
+    const wide = setUp();
+    expect(missOf(shoot(wide.world, wide.a, 'lungs', { at: { u: 1.3, v: 0.9 } }))?.cause).toBe(
+      'crosshair',
+    );
+    // A hit carries no review: the blood has to tell you.
+    const hit = setUp();
+    expect(missOf(shoot(hit.world, hit.a, 'lungs'))).toBeNull();
+  });
+
+  it('a deer on edge that drops at the twang is named as the reason for the miss', () => {
+    const causes: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const { world, a } = setUp();
+      world.rng.combat = seedRng(100 + i);
+      // Alarmed as you let go, 35 m off, and aimed along the top of its back.
+      world.player.x = a.x - 35;
+      const miss = missOf(shoot(world, a, 'lungs', { at: { u: 0, v: 0.72 }, edge: 0.9 }));
+      if (miss) causes.push(miss.cause);
+    }
+    expect(causes).toContain('jumped');
+  });
+
   it('every shot is practice for the bow arm', () => {
     const { world, a } = setUp();
     const before = world.player.knowledge.hands.bow;
@@ -317,8 +348,13 @@ function shoot(
   world: WorldState,
   a: Animal,
   organ: PartId,
-  { walking = 0, lead = false }: { walking?: number; lead?: boolean } = {},
-): void {
+  {
+    walking = 0,
+    lead = false,
+    at,
+    edge,
+  }: { walking?: number; lead?: boolean; at?: { u: number; v: number }; edge?: number } = {},
+): SimEvent[] {
   step(world, [{ type: 'draw', target: a.id }], 6);
   expect(world.player.bow).not.toBeNull();
   // Settle for three real seconds, hold your breath and let it calm you.
@@ -332,10 +368,20 @@ function shoot(
   const d = Math.hypot(a.x - p.x, a.y - p.y);
   const drift = sway(swayInput(bow, d, false, p.knowledge.hands.bow), world.time);
   const theta = relativeAngle(a.heading, p.x, p.y, a.x, a.y);
-  const { u, v } = centreOf(organ, theta);
+  const { u, v } = at ?? centreOf(organ, theta);
   a.speed = walking;
+  if (edge !== undefined) a.awareness = edge;
   const ahead = lead ? travelDuringFlight(walking, d, theta) : 0;
-  step(world, [{ type: 'aim', u: u - drift.u - ahead, v: v - drift.v }, { type: 'release' }], 6);
+  return step(
+    world,
+    [{ type: 'aim', u: u - drift.u - ahead, v: v - drift.v }, { type: 'release' }],
+    6,
+  );
+}
+
+function missOf(events: SimEvent[]): MissReview | null {
+  const shot = events.find((e) => e.type === 'shot');
+  return shot?.type === 'shot' ? shot.miss : null;
 }
 
 function runUntilDead(world: WorldState, a: Animal, steps: number): void {

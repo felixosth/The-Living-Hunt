@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { PartId } from '../content/anatomy';
-import { SPECIES } from '../content/species';
+import { SPECIES, type SpeciesId } from '../content/species';
+import { hash32 } from '../core/hash';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
-import { type Projected, projectAnatomy, scatter, sway } from '../sim/shot';
+import type { MissCause } from '../sim/events';
+import { type Projected, projectAnatomy, scatter, sway, TWIG_TURNS } from '../sim/shot';
 import type { BowView } from '../sim/snapshot';
-import { sinceTick, snapshot } from './store';
+import { lastMiss, sinceTick, snapshot } from './store';
 
 /** Beyond about this range an animal on edge can move before the arrow arrives. */
 const JUMP_RANGE_M = 12;
@@ -114,6 +116,158 @@ function Details({
   );
 }
 
+/** The animal's side view at angle `theta`, with the organ outlines your knowledge shows. */
+function Body({
+  species,
+  theta,
+  headDown,
+  alarmed,
+  anatomyLevel,
+}: {
+  species: SpeciesId;
+  theta: number;
+  headDown: boolean;
+  alarmed: boolean;
+  anatomyLevel: number;
+}) {
+  const k = species === 'hare' ? 0.5 : 1;
+  const parts = projectAnatomy(species, theta, headDown);
+  // Far-side parts first, so the near side overlaps them.
+  const byDepth = [...parts].sort((a, b) => b.depth - a.depth);
+  const silhouette = byDepth.filter((p) => ['leg', 'body', 'neck', 'head'].includes(p.id));
+  const shown = OUTLINES[anatomyLevel] ?? [];
+  const organs = parts.filter((p) => shown.includes(p.id));
+  // A novice with a little lore sees only a rough "vitals" area.
+  const heart = parts.find((p) => p.id === 'heart');
+  const lungs = parts.find((p) => p.id === 'lungs');
+  const rough =
+    anatomyLevel === 1 && heart && lungs
+      ? {
+          ...lungs,
+          u: (lungs.u + heart.u) / 2,
+          v: (lungs.v + heart.v) / 2,
+          ru: lungs.ru * 1.5,
+          rv: lungs.rv * 1.6,
+        }
+      : null;
+  return (
+    <g>
+      <line x1={-2} x2={2} y1={0} y2={0} stroke="#5a5a4a" stroke-width={0.01 * k} />
+      {silhouette.map((p, i) => (
+        <Ellipse key={`s${i}`} p={p} fill={p.depth > 0.05 ? '#5c4331' : '#7d5c42'} />
+      ))}
+      <Details parts={parts} theta={theta} species={species} alarmed={alarmed} />
+      {rough && <Ellipse p={rough} fill="none" stroke="#e8c16a" dash="0.03 0.02" />}
+      {organs.map((p, i) => (
+        <Ellipse
+          key={`o${i}`}
+          p={p}
+          fill="none"
+          stroke={ORGAN_COLOUR[p.id] ?? '#fff'}
+          dash={anatomyLevel < 4 ? '0.025 0.015' : undefined}
+        />
+      ))}
+    </g>
+  );
+}
+
+/** Twigs and branches in the line of fire, more the more brush there is. */
+function Twigs({ brush, seed, k }: { brush: number; seed: number; k: number }) {
+  if (brush < 0.05) return null;
+  const count = Math.ceil(brush * 14);
+  const twigs = Array.from({ length: count }, (_, i) => {
+    const h = (n: number) => (hash32(seed, i, n) % 1000) / 1000;
+    const x = (h(1) * 2.1 - 1.05) * k;
+    const y = -(0.05 + h(2) * 1.1) * k;
+    const angle = (h(3) - 0.5) * 2.2;
+    const len = (0.15 + h(4) * 0.35) * k;
+    return {
+      x1: x - Math.cos(angle) * len,
+      y1: y - Math.sin(angle) * len,
+      x2: x + Math.cos(angle) * len,
+      y2: y + Math.sin(angle) * len,
+      w: (0.008 + h(5) * 0.012) * k,
+    };
+  });
+  return (
+    <g stroke="#2a2418" stroke-linecap="round" opacity={0.75}>
+      {twigs.map((t, i) => (
+        <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke-width={t.w} />
+      ))}
+    </g>
+  );
+}
+
+const MISS_WORDS: Record<MissCause, string> = {
+  brush: 'A twig turned the arrow.',
+  jumped: 'It dropped at the twang: the arrow passed where it had been.',
+  walked: 'It walked on while the arrow flew: the arrow passed behind.',
+  crosshair: 'Your crosshair was off the animal when you let go.',
+  scatter: 'The crosshair was on it, but the scatter took the arrow wide.',
+};
+
+/** After a miss: where the crosshair was, and where the arrow actually passed the animal. */
+function MissReviewInset() {
+  const last = lastMiss.value;
+  const s = snapshot.value;
+  if (!last || !s) return null;
+  const m = last.review;
+  const k = m.species === 'hare' ? 0.5 : 1;
+  const mark = 0.035 * k;
+  // Widen the view if the arrow passed outside it, so both marks show.
+  const pad = 0.12 * k;
+  const x0 = Math.min(-1.15 * k, m.u - pad, m.aimU - pad);
+  const x1 = Math.max(1.15 * k, m.u + pad, m.aimU + pad);
+  const y0 = Math.min(-1.25 * k, -m.v - pad, -m.aimV - pad);
+  const y1 = Math.max(0.1 * k, -m.v + pad, -m.aimV + pad);
+  return (
+    <div class="panel inset" data-testid="miss-review">
+      <svg
+        viewBox={`${x0} ${y0} ${x1 - x0} ${y1 - y0}`}
+        class="inset-svg"
+        role="img"
+        aria-label="Where your missed arrow went"
+      >
+        <Body
+          species={m.species}
+          theta={m.theta}
+          headDown={m.headDown}
+          alarmed={true}
+          anatomyLevel={s.tracking.knowledge.species[m.species].level}
+        />
+        <circle
+          cx={m.aimU}
+          cy={-m.aimV}
+          r={mark}
+          fill="none"
+          stroke="#e8c16a"
+          stroke-width={0.01 * k}
+          opacity={0.8}
+        />
+        <line
+          x1={m.aimU}
+          y1={-m.aimV}
+          x2={m.u}
+          y2={-m.v}
+          stroke="#e0806a"
+          stroke-width={0.008 * k}
+          stroke-dasharray={`${0.02 * k} ${0.015 * k}`}
+        />
+        <g stroke="#e0806a" stroke-width={0.018 * k} stroke-linecap="round">
+          <line x1={m.u - mark} y1={-m.v - mark} x2={m.u + mark} y2={-m.v + mark} />
+          <line x1={m.u - mark} y1={-m.v + mark} x2={m.u + mark} y2={-m.v - mark} />
+        </g>
+      </svg>
+      <div class="inset-info">
+        <span class="warn">Missed. {MISS_WORDS[m.cause]}</span>
+      </div>
+      <div class="inset-info dim">
+        <span>Ring: your crosshair as you let go · cross: where the arrow passed</span>
+      </div>
+    </div>
+  );
+}
+
 /** Which way the animal is moving, over its back: longer the faster it goes. */
 function MotionArrow({ dir, k, fast }: { dir: 1 | -1; k: number; fast: BowView['motion'] }) {
   const len = (fast === 'slow' ? 0.12 : fast === 'walking' ? 0.25 : 0.4) * k;
@@ -182,27 +336,9 @@ function Reticle({
 export function ShotInset() {
   const s = snapshot.value;
   const bow = s?.bow;
-  if (!s || !bow) return null;
+  if (!s) return null;
+  if (!bow) return lastMiss.value ? <MissReviewInset /> : null;
   const k = bow.species === 'hare' ? 0.5 : 1;
-  const parts = projectAnatomy(bow.species, bow.theta, bow.headDown);
-  // Far-side parts first, so the near side overlaps them.
-  const byDepth = [...parts].sort((a, b) => b.depth - a.depth);
-  const silhouette = byDepth.filter((p) => ['leg', 'body', 'neck', 'head'].includes(p.id));
-  const shown = OUTLINES[bow.anatomyLevel] ?? [];
-  const organs = parts.filter((p) => shown.includes(p.id));
-  // A novice with a little lore sees only a rough "vitals" area.
-  const heart = parts.find((p) => p.id === 'heart');
-  const lungs = parts.find((p) => p.id === 'lungs');
-  const rough =
-    bow.anatomyLevel === 1 && heart && lungs
-      ? {
-          ...lungs,
-          u: (lungs.u + heart.u) / 2,
-          v: (lungs.v + heart.v) / 2,
-          ru: lungs.ru * 1.5,
-          rv: lungs.rv * 1.6,
-        }
-      : null;
   const reticle =
     bow.breath === 'holding' ? '#9ec3d8' : bow.breath === 'shaking' ? '#e0806a' : '#e8c16a';
 
@@ -214,29 +350,17 @@ export function ShotInset() {
         role="img"
         aria-label="Side view of your target with the aiming reticle"
       >
-        <line x1={-2} x2={2} y1={0} y2={0} stroke="#5a5a4a" stroke-width={0.01 * k} />
-        {silhouette.map((p, i) => (
-          <Ellipse key={`s${i}`} p={p} fill={p.depth > 0.05 ? '#5c4331' : '#7d5c42'} />
-        ))}
-        <Details
-          parts={parts}
-          theta={bow.theta}
+        <Body
           species={bow.species}
+          theta={bow.theta}
+          headDown={bow.headDown}
           alarmed={bow.alertness !== 'unaware'}
+          anatomyLevel={bow.anatomyLevel}
         />
         {bow.motion !== 'still' && Math.abs(Math.sin(bow.theta)) > 0.35 && (
           <MotionArrow dir={bow.motionDir} k={k} fast={bow.motion} />
         )}
-        {rough && <Ellipse p={rough} fill="none" stroke="#e8c16a" dash="0.03 0.02" />}
-        {organs.map((p, i) => (
-          <Ellipse
-            key={`o${i}`}
-            p={p}
-            fill="none"
-            stroke={ORGAN_COLOUR[p.id] ?? '#fff'}
-            dash={bow.anatomyLevel < 4 ? '0.025 0.015' : undefined}
-          />
-        ))}
+        <Twigs brush={bow.brush} seed={bow.targetId} k={k} />
         <Reticle bow={bow} time={s.time} color={reticle} k={k} />
       </svg>
       <div class="inset-info">
@@ -270,8 +394,6 @@ export function ShotInset() {
       <div class="inset-info dim">
         {bow.motion === 'running' ? (
           <span class="warn">Running: no shot. Let it go.</span>
-        ) : bow.brush > 0.3 ? (
-          <span class="warn">Branches in the way: the arrow may be turned.</span>
         ) : bow.motion === 'walking' ? (
           <span class="warn">
             Walking: it moves on {bow.lead.toFixed(1)} m while the arrow flies. Lead it, or stop it
@@ -293,6 +415,14 @@ export function ShotInset() {
           <span>{ANGLE_ADVICE[bow.angle]}</span>
         )}
       </div>
+      {bow.brush >= 0.05 && (
+        <div class="inset-info">
+          <span class="warn">
+            Twigs in the line: about {Math.round(Math.min(1, bow.brush * TWIG_TURNS) * 100)} %
+            chance one turns the arrow.
+          </span>
+        </div>
+      )}
       <div class="inset-info dim">
         Move the mouse to aim · click as the crosshair drifts over the vitals · release right button
         to let down

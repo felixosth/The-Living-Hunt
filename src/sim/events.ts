@@ -30,6 +30,10 @@ export type SimEvent =
    */
   | {
       type: 'shot';
+      /** Why it missed, and where the arrow passed; null on a hit (the blood tells you that). */
+      miss: MissReview | null;
+      /** It walked on while the arrow flew, enough to move the mark noticeably. */
+      walkedOn: boolean;
       animalId: number;
       hit: boolean;
       dropped: boolean;
@@ -58,3 +62,30 @@ export type SimEvent =
   | { type: 'bleated'; stopped: number; warier: number };
 
 export type SimEventType = SimEvent['type'];
+
+/** Why an arrow missed. */
+export type MissCause =
+  /** A twig or branch in the line turned it. */
+  | 'brush'
+  /** The animal dropped at the twang; the arrow passed where it had been. */
+  | 'jumped'
+  /** The animal walked on while the arrow flew; it passed behind. */
+  | 'walked'
+  /** The crosshair wasn't on the animal when you let go. */
+  | 'crosshair'
+  /** The crosshair was on it, but the scatter took the arrow wide. */
+  | 'scatter';
+
+/** A missed arrow, for the shot inset to show afterwards. */
+export interface MissReview {
+  cause: MissCause;
+  species: SpeciesId;
+  theta: number;
+  headDown: boolean;
+  /** Where the crosshair was as you released, on the side view (metres). */
+  aimU: number;
+  aimV: number;
+  /** Where the arrow crossed the animal's side view, relative to its body as it was then. */
+  u: number;
+  v: number;
+}

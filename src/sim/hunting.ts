@@ -11,7 +11,7 @@ import { clamp } from '../core/math';
 import { chance, nextRange } from '../core/rng';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
 import { animalContext, applyHit, hearBleat, SUSPICIOUS } from './animals';
-import type { SimEvent } from './events';
+import type { MissCause, MissReview, SimEvent } from './events';
 import { learn, lesson } from './knowledge';
 import { sightlineObstruction } from './perception';
 import { isWalkable, type RegionMap } from './region';
@@ -25,8 +25,10 @@ import {
   MAX_RELEASE_LEAD_S,
   relativeAngle,
   scatter,
+  strikesBody,
   sway,
   swayInput,
+  TWIG_TURNS,
   travelDuringFlight,
 } from './shot';
 import { addSign, removeSign, SIGN_LIFETIME_H, SignKind } from './signs';
@@ -168,9 +170,36 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
   const ducked = Math.hypot(jump.du, jump.dv) > 0.1;
   // Twigs and branches in the way can turn an arrow.
   const brush = sightlineObstruction(map, p.x, p.y, a.x, a.y);
-  const result = chance(rng, brush * 0.9)
+  const turned = chance(rng, brush * TWIG_TURNS);
+  const headDown = isHeadDown(a);
+  const result = turned
     ? { zone: 'miss' as const, passThrough: true, tainted: false }
-    : castArrow(a.species, theta, u, v, rng, isHeadDown(a), d);
+    : castArrow(a.species, theta, u, v, rng, headDown, d);
+  // If it missed, work out why: the first thing that, undone, would have hit.
+  let miss: MissReview | null = null;
+  if (result.zone === 'miss') {
+    const would = (du: number, dv: number) =>
+      strikesBody(a.species, theta, u - du, v - dv, headDown);
+    const cause: MissCause = turned
+      ? 'brush'
+      : ducked && would(jump.du, jump.dv)
+        ? 'jumped'
+        : Math.abs(walkedOn) > 0.1 && would(jump.du + walkedOn, jump.dv)
+          ? 'walked'
+          : strikesBody(a.species, theta, bow.aimU + drift.u, bow.aimV + drift.v, headDown)
+            ? 'scatter'
+            : 'crosshair';
+    miss = {
+      cause,
+      species: a.species,
+      theta,
+      headDown,
+      aimU: bow.aimU + drift.u,
+      aimV: bow.aimV + drift.v,
+      u,
+      v,
+    };
+  }
   p.arrows--;
   // Every shot is practice; a clean one teaches more.
   const clean = result.zone === 'heart' || result.zone === 'lungs';
@@ -230,6 +259,8 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
     hit,
     dropped: result.zone === 'spine',
     ducked,
+    miss,
+    walkedOn: Math.abs(walkedOn) > 0.1,
     fromX: p.x,
     fromY: p.y,
     atX: a.x,

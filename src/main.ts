@@ -10,7 +10,7 @@ import { formatClock, formatDate } from './core/time';
 import { decodeSave, encodeSave } from './persistence/saveFile';
 import { downloadSaveFile, readFileBytes, readSlot, writeSlot } from './persistence/storage';
 import { Renderer } from './render/renderer';
-import type { SimEvent } from './sim/events';
+import type { MissCause, SimEvent } from './sim/events';
 import { getRegionMap } from './sim/region';
 import { BOW_RANGE_M } from './sim/shot';
 import type { WorldState } from './sim/state';
@@ -27,6 +27,8 @@ import {
   helpOpen,
   introOpen,
   journalOpen,
+  lastMiss,
+  MISS_REVIEW_MS,
   perf,
   reading,
   showToast,
@@ -279,9 +281,11 @@ async function boot(): Promise<void> {
     if (!bow) return;
     // Relative mouse movement nudges the aim across the side view.
     const metresPerPx = bow.species === 'hare' ? 0.0022 : 0.0045;
+    // Kept within the side view (0.5 scale for a hare), so the crosshair can't leave it.
+    const k = bow.species === 'hare' ? 0.5 : 1;
     aimLocal = {
-      u: Math.max(-1.5, Math.min(1.5, aimLocal.u + e.movementX * metresPerPx)),
-      v: Math.max(0, Math.min(1.6, aimLocal.v - e.movementY * metresPerPx)),
+      u: Math.max(-1.05 * k, Math.min(1.05 * k, aimLocal.u + e.movementX * metresPerPx)),
+      v: Math.max(0, Math.min(1.15 * k, aimLocal.v - e.movementY * metresPerPx)),
     };
     actions.aim(aimLocal.u, aimLocal.v);
   });
@@ -305,6 +309,14 @@ async function boot(): Promise<void> {
     },
     { passive: false },
   );
+
+  const MISS_NOTICE: Record<MissCause, string> = {
+    brush: 'A twig turns the arrow. It flies wide.',
+    jumped: 'It drops at the twang: the arrow flies over where it stood.',
+    walked: 'It walks on as the arrow flies: the arrow passes behind it.',
+    crosshair: 'The arrow flies wide: your crosshair was off it.',
+    scatter: 'The arrow flies wide of the crosshair.',
+  };
 
   /** The direction a sound seems to come from: roughly right, never exact. */
   function heardFrom(
@@ -343,15 +355,22 @@ async function boot(): Promise<void> {
         );
         return;
       case 'shot':
-        if (event.ducked) addNotice('It jumped at the sound of the string!');
+        if (event.miss) {
+          const at = performance.now();
+          lastMiss.value = { review: event.miss, at };
+          setTimeout(() => {
+            if (lastMiss.value?.at === at) lastMiss.value = null;
+          }, MISS_REVIEW_MS);
+          addNotice(MISS_NOTICE[event.miss.cause]);
+          return;
+        }
+        if (event.ducked) addNotice('It jumped at the sound of the string: the arrow struck high.');
+        else if (event.walkedOn)
+          addNotice('It walked on as the arrow flew: it struck further back.');
         addNotice(
           event.dropped
             ? 'The arrow strikes. It drops on the spot.'
-            : event.hit
-              ? 'Thwack. The arrow strikes home.'
-              : event.ducked
-                ? 'The arrow flies where it stood.'
-                : 'The arrow flies wide.',
+            : 'Thwack. The arrow strikes home.',
         );
         return;
       case 'died':
