@@ -127,8 +127,8 @@ function useEveryFrame(): void {
 }
 
 /**
- * The crosshair shows where the arrow would go right now: your aim point
- * (the small ring) moved by the drift and tremor. The circle around the
+ * The crosshair shows where the arrow would go right now: where you are
+ * aiming, moved by the drift and tremor. The circle around the
  * crosshair is the scatter you can't time away.
  */
 function Reticle({
@@ -151,15 +151,6 @@ function Reticle({
   const line = { stroke: color, 'stroke-width': 0.008 * k };
   return (
     <g>
-      <circle
-        cx={bow.aimU}
-        cy={-bow.aimV}
-        r={0.012 * k}
-        fill="none"
-        stroke={color}
-        stroke-width={0.006 * k}
-        opacity={0.5}
-      />
       <circle cx={x} cy={y} r={r} fill="none" stroke={color} stroke-width={0.012 * k} />
       <line x1={x - r - 0.04 * k} x2={x - 0.02 * k} y1={y} y2={y} {...line} />
       <line x1={x + 0.02 * k} x2={x + r + 0.04 * k} y1={y} y2={y} {...line} />
