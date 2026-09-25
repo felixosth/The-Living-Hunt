@@ -8,6 +8,7 @@ import { controls, type GameActions, godView, perf, snapshot } from './store';
 /** Weather you can force, as [kind, label]. */
 const WEATHER: [ForcedWeather, string][] = [
   ['clear', 'Clear'],
+  ['windy', 'Windy'],
   ['rain', 'Rain'],
   ['snowfall', 'Snowfall'],
   ['snowCover', '+10 cm snow'],

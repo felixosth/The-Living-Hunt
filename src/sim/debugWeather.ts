@@ -8,6 +8,7 @@ import type { WeatherHour, WorldState } from './state';
 
 export const FORCED_WEATHER = [
   'clear',
+  'windy',
   'rain',
   'snowfall',
   'snowCover',
@@ -30,6 +31,9 @@ export function forceWeather(state: WorldState, kind: ForcedWeather): void {
   switch (kind) {
     case 'clear':
       rewrite(state, 12, (h) => Object.assign(h, { precip: 0, fog: 0, cloud: 0.1 }));
+      return;
+    case 'windy':
+      rewrite(state, 6, (h) => Object.assign(h, { windSpeed: 9, fog: 0 }));
       return;
     case 'rain':
       rewrite(state, 6, (h) =>

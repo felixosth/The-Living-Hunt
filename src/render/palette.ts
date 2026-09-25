@@ -55,4 +55,7 @@ export const COLORS = {
   rain: 0xb8c8d4,
   snowflake: 0xf8fbff,
   fog: [196, 202, 200] as const,
+  /** Grey enough to show against snow as well as grass. */
+  breath: 0xa9b4c2,
+  smoke: 0xb8b6b0,
 };

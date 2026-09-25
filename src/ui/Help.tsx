@@ -31,9 +31,9 @@ export function Help() {
     <div class="panel help-panel" data-testid="help">
       <div class="card-title">How to hunt</div>
       <p class="card-meta">
-        Watch the wind: the streaks blow the way your scent drifts, and any animal downwind of you
-        will smell you. Move slowly on quiet ground, stay in cover, and read what the animals left
-        behind.
+        Watch the wind: treetops lean and gusts roll across the ground the way your scent drifts,
+        and in the cold your breath shows it too. Any animal downwind of you will smell you. Move
+        slowly on quiet ground, stay in cover, and read what the animals left behind.
       </p>
       <p class="card-meta">
         Watch the weather too. Rain washes out old trails and your scent, and hides your footsteps.

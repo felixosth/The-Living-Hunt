@@ -34,6 +34,7 @@ import { ScreenCues } from './cues';
 import { Footprints } from './footprints';
 import { COLORS, TERRAIN_RGB } from './palette';
 import { SignLayer } from './signs';
+import { WindField } from './wind';
 
 extensions.add(CullerPlugin);
 
@@ -73,6 +74,8 @@ export class Renderer {
   private snowPatchy: Sprite | null = null;
   private snowFull: Sprite | null = null;
   private footprintLayer = new Container();
+  private gustLayer = new Container();
+  private windField: WindField;
   private footprints: Footprints;
   /** Fog and thick snowfall, drawn in screen space round the player. */
   private haze = new Graphics();
@@ -108,6 +111,7 @@ export class Renderer {
     this.world.addChild(
       this.groundLayer,
       this.snowLayer,
+      this.gustLayer,
       this.footprintLayer,
       this.signLayer,
       this.shadowLayer,
@@ -119,6 +123,7 @@ export class Renderer {
     this.air = new AirLayer(this.airLayer);
     this.arrows = new ArrowFlights(this.airLayer);
     this.footprints = new Footprints(this.footprintLayer);
+    this.windField = new WindField(this.gustLayer);
     this.overlay.addChild(this.debug);
     app.stage.addChild(this.world, this.haze, this.overlay);
     this.cues = new ScreenCues(app.stage);
@@ -167,6 +172,8 @@ export class Renderer {
     for (const g of drawShadows(map)) this.shadowLayer.addChild(g);
     this.buildCanopies(map);
     this.canopyLayer.addChild(drawCabin(map));
+    const { x: cx, y: cy, w: cw, h: ch } = map.cabin;
+    this.air.setChimney(cw > 0 ? { x: cx + cw * 0.72 + 0.5, y: cy + ch * 0.18 + 0.5 } : null);
   }
 
   setGodView(on: boolean): void {
@@ -204,12 +211,10 @@ export class Renderer {
     const now = performance.now();
     const topLeft = this.screenToWorld(0, 0);
     const bottomRight = this.screenToWorld(width, height);
-    this.air.update(
-      curr,
-      { x0: topLeft.x, y0: topLeft.y, x1: bottomRight.x, y1: bottomRight.y },
-      this.zoom,
-      now,
-    );
+    const view = { x0: topLeft.x, y0: topLeft.y, x1: bottomRight.x, y1: bottomRight.y };
+    this.windField.update(curr, view, now);
+    this.swayCanopies(view);
+    this.air.update(curr, view, this.zoom, now);
     this.arrows.update(this.zoom, now, (id) => {
       const b = curr.animals.find((a) => a.id === id);
       if (!b) return null;
@@ -410,6 +415,32 @@ export class Renderer {
     const cy = Math.floor(y / TREE_CHUNK_M);
     if (cx < 0 || cy < 0 || cx >= this.chunkCols || cy >= this.chunkRows) return undefined;
     return this.chunks[cy * this.chunkCols + cx];
+  }
+
+  /** Treetops in view lean with the wind and the gusts passing through. */
+  private swayCanopies(view: { x0: number; y0: number; x1: number; y1: number }): void {
+    const pad = 4;
+    const cx0 = Math.max(0, Math.floor((view.x0 - pad) / TREE_CHUNK_M));
+    const cx1 = Math.min(this.chunkCols - 1, Math.floor((view.x1 + pad) / TREE_CHUNK_M));
+    const cy0 = Math.max(0, Math.floor((view.y0 - pad) / TREE_CHUNK_M));
+    const cy1 = Math.min(this.chunkRows - 1, Math.floor((view.y1 + pad) / TREE_CHUNK_M));
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const chunk = this.chunks[cy * this.chunkCols + cx] as TreeChunk;
+        for (let i = 0; i < chunk.sprites.length; i++) {
+          const tx = chunk.trees[i * 3] as number;
+          const ty = chunk.trees[i * 3 + 1] as number;
+          const tr = chunk.trees[i * 3 + 2] as number;
+          const { dx, dy } = this.windField.lean(tx, ty, tx * 0.37 + ty * 0.23);
+          // Bigger crowns catch more wind.
+          const k = 0.6 + 0.25 * tr;
+          (chunk.sprites[i] as Sprite).position.set(
+            (tx + dx * k) * PX_PER_M,
+            (ty + dy * k) * PX_PER_M,
+          );
+        }
+      }
+    }
   }
 
   /** Fade canopies over the player and the animals in view, so you can always see them. */
