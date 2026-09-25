@@ -4,6 +4,7 @@
  */
 import type { SimEvent } from './events';
 import { aim, bleat, breath, draw, interact, lower, release } from './hunting';
+import { type KnowledgeArea, MAX_LEVEL } from './knowledge';
 import { getRegionMap, isWalkable } from './region';
 import { GAITS, type Gait, type WorldState } from './state';
 import { follow, inspect } from './tracking';
@@ -30,7 +31,9 @@ export type Command =
   /** The context action: dress, pick up, put down, bring home. */
   | { type: 'interact' }
   /** Developer tool: move the player instantly (god view). */
-  | { type: 'teleport'; x: number; y: number };
+  | { type: 'teleport'; x: number; y: number }
+  /** Developer tool: set a skill's experience directly (the level is its whole part, 0–4). */
+  | { type: 'setKnowledge'; area: KnowledgeArea; key: string; xp: number };
 
 export function applyCommand(state: WorldState, command: Command, events: SimEvent[] = []): void {
   switch (command.type) {
@@ -70,6 +73,12 @@ export function applyCommand(state: WorldState, command: Command, events: SimEve
     case 'interact':
       interact(state, getRegionMap(state.seed, state.regionId), events);
       return;
+    case 'setKnowledge': {
+      const table = state.player.knowledge[command.area] as Record<string, number> | undefined;
+      if (!table || !(command.key in table) || !Number.isFinite(command.xp)) return;
+      table[command.key] = Math.max(0, Math.min(MAX_LEVEL + 0.999, command.xp));
+      return;
+    }
     case 'teleport': {
       const map = getRegionMap(state.seed, state.regionId);
       if (!Number.isFinite(command.x) || !Number.isFinite(command.y)) return;

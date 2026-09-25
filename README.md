@@ -33,7 +33,7 @@ Add `?seed=123` to the URL to generate a different world.
 | <kbd>T</kbd> / <kbd>P</kbd> | Wait (10×, stops when something stirs) / pause |
 | <kbd>H</kbd> | All controls |
 | Mouse wheel | Zoom. The camera also leans towards the mouse, so point where you want to look |
-| <kbd>`</kbd> | Debug panel: time scale, saves, new world, state hash, **god view** |
+| <kbd>`</kbd> | Debug panel: time scale, saves, new world, skill levels, state hash, **god view** |
 
 At 1× speed a game minute passes every real second, so a full day lasts about 24 minutes.
 

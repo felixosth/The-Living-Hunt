@@ -1,7 +1,20 @@
 import { useRef, useState } from 'preact/hooks';
 import { TIME_SCALES } from '../app/session';
 import { terrainDef } from '../content/terrain';
+import type { KnowledgeArea } from '../sim/knowledge';
 import { controls, type GameActions, godView, perf, snapshot } from './store';
+
+/** Every skill you can set, as [area, key, label]. */
+const SKILLS: [KnowledgeArea, string, string][] = [
+  ['species', 'roe', 'Roe deer'],
+  ['species', 'hare', 'Hare'],
+  ['signs', 'print', 'Prints'],
+  ['signs', 'pellets', 'Droppings'],
+  ['signs', 'bed', 'Beds'],
+  ['signs', 'browse', 'Browse'],
+  ['signs', 'blood', 'Blood'],
+  ['hands', 'bow', 'Bow arm'],
+];
 
 export function DebugPanel({ actions }: { actions: GameActions }) {
   const s = snapshot.value;
@@ -9,6 +22,7 @@ export function DebugPanel({ actions }: { actions: GameActions }) {
   const { timeScale, paused } = controls.value;
   const [seedText, setSeedText] = useState('');
   const [hash, setHash] = useState('');
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   if (!s) return null;
 
@@ -119,6 +133,42 @@ export function DebugPanel({ actions }: { actions: GameActions }) {
         />
         <button type="submit">New world</button>
       </form>
+
+      <div class="debug-row">
+        <span class="debug-label">Skills</span>
+        <button
+          type="button"
+          class={skillsOpen ? 'on' : ''}
+          data-testid="skills-toggle"
+          onClick={() => setSkillsOpen(!skillsOpen)}
+        >
+          {skillsOpen ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {skillsOpen && (
+        <div class="debug-skills" data-testid="skills">
+          {SKILLS.map(([area, key, label]) => {
+            const current = (s.tracking.knowledge[area] as Record<string, { level: number }>)[key]
+              ?.level;
+            return (
+              <div class="debug-row" key={`${area}.${key}`}>
+                <span class="debug-label">{label}</span>
+                {[0, 1, 2, 3, 4].map((lvl) => (
+                  <button
+                    type="button"
+                    key={lvl}
+                    class={current === lvl ? 'on' : ''}
+                    data-testid={`skill-${area}-${key}-${lvl}`}
+                    onClick={() => actions.setSkill(area, key, lvl)}
+                  >
+                    {lvl}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div class="debug-row">
         <span class="debug-label">State</span>

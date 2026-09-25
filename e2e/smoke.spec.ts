@@ -62,6 +62,11 @@ test('boots, walks, saves and loads', async ({ page }) => {
   // Pause, quicksave and remember the exact state.
   await page.keyboard.press('Backquote');
   await expect(page.getByTestId('debug-panel')).toBeVisible();
+  // Skills can be set from the debug panel.
+  await page.getByTestId('skills-toggle').click();
+  await page.getByTestId('skill-signs-blood-3').click();
+  await expect(page.getByTestId('skill-signs-blood-3')).toHaveClass(/on/);
+  await page.getByTestId('skills-toggle').click();
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByTestId('quicksave').click();
   await expect(page.getByTestId('toast')).toContainText('Saved');

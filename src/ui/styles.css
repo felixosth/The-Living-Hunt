@@ -217,6 +217,14 @@ kbd {
   color: var(--ink-dim);
 }
 
+.debug-skills .debug-label {
+  width: 72px;
+}
+
+.debug-skills .debug-row {
+  margin-top: 3px;
+}
+
 .debug button,
 .debug input {
   font: 12px var(--mono);

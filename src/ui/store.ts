@@ -2,6 +2,7 @@
 import { signal } from '@preact/signals';
 import type { TimeScale } from '../app/session';
 import type { MissReview } from '../sim/events';
+import type { KnowledgeArea } from '../sim/knowledge';
 import type { Reading } from '../sim/reading';
 import { MAX_RELEASE_LEAD_S } from '../sim/shot';
 import type { Snapshot } from '../sim/snapshot';
@@ -27,6 +28,8 @@ export interface GameActions {
   interact(): void;
   /** A soft bleat to stop a walking deer. */
   bleat(): void;
+  /** Debug: set a skill to a level (0–4). */
+  setSkill(area: KnowledgeArea, key: string, level: number): void;
 }
 
 export interface Perf {

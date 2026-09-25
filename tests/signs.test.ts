@@ -184,6 +184,17 @@ describe('readings', () => {
     expect(r.lines.join(' ')).toContain('east');
   });
 
+  it('the debug tool sets a skill, within bounds, and ignores unknown ones', () => {
+    const world = createWorld(1);
+    step(world, [{ type: 'setKnowledge', area: 'signs', key: 'blood', xp: 3 }], 6);
+    expect(world.player.knowledge.signs.blood).toBe(3);
+    step(world, [{ type: 'setKnowledge', area: 'hands', key: 'bow', xp: 99 }], 6);
+    expect(world.player.knowledge.hands.bow).toBeCloseTo(4.999);
+    const before = structuredClone(world.player.knowledge);
+    step(world, [{ type: 'setKnowledge', area: 'species', key: 'wolf', xp: 2 }], 6);
+    expect(world.player.knowledge).toEqual(before);
+  });
+
   it('gets sharper with knowledge', () => {
     const record: SignRecord = {
       id: 42,

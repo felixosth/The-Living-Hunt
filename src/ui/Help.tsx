@@ -16,7 +16,7 @@ const CONTROLS: [string, string][] = [
   ['T', 'Wait (10×); stops when something stirs'],
   ['P', 'Pause'],
   ['Mouse wheel', 'Zoom'],
-  ['`', 'Debug panel and god view'],
+  ['`', 'Debug panel: god view, skill levels, saves'],
 ];
 
 export function Help() {
