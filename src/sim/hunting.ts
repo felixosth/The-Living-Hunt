@@ -22,7 +22,7 @@ import {
   relativeAngle,
   reticleSigma,
 } from './shot';
-import { addSign, SIGN_LIFETIME_H, SignKind, type SignStore } from './signs';
+import { addSign, removeSign, SIGN_LIFETIME_H, SignKind } from './signs';
 import type { Animal, HuntRecord, HuntSummary, PlayerState, WorldState } from './state';
 
 /** Field dressing a roe deer, in game seconds. */
@@ -209,13 +209,6 @@ function bloodOnArrow(zone: string): number {
 // ---------------------------------------------------------------------------
 // Recovery: interact (E)
 // ---------------------------------------------------------------------------
-
-function removeSign(store: SignStore, i: number): void {
-  store.integrity[i] = 0;
-  store.decay[i] = 1;
-  store.flags[i] = 0;
-  store.revision++;
-}
 
 /** What E would do here, for the HUD prompt. */
 export function interactPrompt(state: WorldState, map: RegionMap): string | null {

@@ -241,8 +241,15 @@ describe('a hunt, start to finish', () => {
     expect(arrow).toBeGreaterThanOrEqual(0);
     world.player.x = world.signs.x[arrow] as number;
     world.player.y = world.signs.y[arrow] as number;
+    const before = world.signs.count;
     step(world, [{ type: 'interact' }], 6);
     expect(world.player.arrows).toBe(12);
+    // The arrow is gone from the ground, not just faded: nothing left to notice or draw.
+    for (let i = 0; i < 5; i++) step(world, [], 6);
+    for (let i = 0; i < world.signs.count; i++) {
+      expect(world.signs.kind[i]).not.toBe(SignKind.Arrow);
+    }
+    expect(world.signs.count).toBeLessThan(before + 5);
   });
 
   it("can't draw on an animal you can't see, or out of range", () => {

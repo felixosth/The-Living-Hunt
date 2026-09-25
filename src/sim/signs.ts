@@ -213,6 +213,14 @@ export function decaySigns(store: SignStore, hours: number): void {
   if (store.id.length > 4 * (w + 256)) resize(store, Math.max(256, 2 * w));
 }
 
+/** Remove the sign at index `i` entirely (e.g. an arrow you picked up), keeping the order. */
+export function removeSign(store: SignStore, i: number): void {
+  if (i < 0 || i >= store.count) return;
+  for (const col of COLUMNS) store[col].copyWithin(i, i + 1, store.count);
+  store.count--;
+  store.revision++;
+}
+
 export function setFlag(store: SignStore, i: number, flag: number): void {
   if (((store.flags[i] as number) & flag) === 0) {
     store.flags[i] = (store.flags[i] as number) | flag;
