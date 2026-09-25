@@ -6,6 +6,9 @@ import { type Projected, projectAnatomy, sway } from '../sim/shot';
 import type { BowView } from '../sim/snapshot';
 import { sinceTick, snapshot } from './store';
 
+/** Beyond about this range an animal on edge can move before the arrow arrives. */
+const JUMP_RANGE_M = 12;
+
 /** Which organ outlines your anatomy knowledge shows, by level. */
 const OUTLINES: PartId[][] = [
   [],
@@ -256,6 +259,10 @@ export function ShotInset() {
       <div class="inset-info dim">
         {bow.brush > 0.3 ? (
           <span class="warn">Branches in the way: the arrow may be turned.</span>
+        ) : bow.alertness !== 'unaware' && bow.distance > JUMP_RANGE_M ? (
+          <span class="warn">
+            It is on edge: at this range it may jump at the sound of the string.
+          </span>
         ) : (
           <span>{ANGLE_ADVICE[bow.angle]}</span>
         )}

@@ -8,7 +8,7 @@
  */
 import { BloodType } from '../content/blood';
 import { SPECIES, type SpeciesId } from '../content/species';
-import { clamp, lerpAngle } from '../core/math';
+import { angleDiff, clamp, lerpAngle } from '../core/math';
 import { chance, nextRange, pick, type RngState } from '../core/rng';
 import {
   daylight,
@@ -44,6 +44,16 @@ export const SCENT_TRAIL_LIFE = 6 * SECONDS_PER_HOUR;
 export const SCENT_CELL_M = 8;
 /** Longest single movement, so animals never skip across a blocked tile. */
 const SUBSTEP_M = 1.5;
+
+/*
+ * Getting going. A game minute passes each real second at normal speed, so
+ * speeds in metres per game minute read as metres per real second on screen,
+ * and these rates are per game minute too.
+ */
+/** Speed gained per game minute when breaking into a run: a roe deer is at full flight in about 0.7 s. */
+const ACCEL: Record<SpeciesId, number> = { roe: 30, hare: 45 };
+/** How fast a running animal can turn, radians per game minute. */
+const TURN_RATE: Record<SpeciesId, number> = { roe: 7, hare: 10 };
 
 // ---------------------------------------------------------------------------
 // Time of day
@@ -430,7 +440,7 @@ function behave(a: Animal, ctx: Ctx): void {
   if (a.wound) {
     moved = behaveWounded(a, ctx);
   } else if (a.activity === 'fleeing') {
-    moved = flee(a, ctx, (def.speed.flee * ctx.dt) / 60);
+    moved = flee(a, ctx, runDistance(a, ctx, def.speed.flee));
     if (ctx.now >= a.until) {
       a.awareness = 0.45;
       travelTo(a, ctx, chooseRest(a, ctx));
@@ -749,13 +759,30 @@ function fleeHeading(a: Animal, map: RegionMap): number {
   return Math.atan2(vy, vx);
 }
 
-/** Bound away from the danger, keeping momentum and preferring cover. */
+/**
+ * How far an animal breaking into a run covers this step, speeding up from
+ * its speed over the last step towards `top` (metres per game minute).
+ */
+function runDistance(a: Animal, ctx: Ctx, top: number): number {
+  const minutes = ctx.dt / 60;
+  const accel = ACCEL[a.species];
+  const start = Math.min(a.speed, top);
+  const toTop = (top - start) / accel;
+  if (toTop >= minutes) return start * minutes + 0.5 * accel * minutes * minutes;
+  return start * toTop + 0.5 * accel * toTop * toTop + top * (minutes - toTop);
+}
+
+/**
+ * Bound away from the danger, keeping momentum and preferring cover. An
+ * animal facing the wrong way has to spin round first, which costs it ground.
+ */
 function flee(a: Animal, ctx: Ctx, distance: number): number {
   const { map } = ctx;
   const w = regionWidthM(map);
   const h = regionHeightM(map);
   let left = distance;
   let moved = 0;
+  let turnLeft = (TURN_RATE[a.species] * ctx.dt) / 60;
   while (left > 1e-6) {
     const away = fleeHeading(a, map);
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -780,16 +807,25 @@ function flee(a: Animal, ctx: Ctx, distance: number): number {
       }
     }
     if (bestScore === Number.NEGATIVE_INFINITY) break;
+    // Turn towards the best way out as fast as it can; while still facing well
+    // off it, it's pivoting more than running.
+    const want = angleDiff(a.heading, best);
+    const turn = clamp(want, -turnLeft, turnLeft);
+    turnLeft -= Math.abs(turn);
+    let dir = a.heading + turn;
+    if (!isWalkable(map, a.x + Math.cos(dir) * 1.5, a.y + Math.sin(dir) * 1.5)) dir = best;
+    const budget = Math.min(left, SUBSTEP_M);
+    const pivoting = Math.abs(want - turn) > Math.PI / 2;
     const step = moveToward(
       a,
       map,
-      a.x + Math.cos(best) * SUBSTEP_M,
-      a.y + Math.sin(best) * SUBSTEP_M,
-      Math.min(left, SUBSTEP_M),
+      a.x + Math.cos(dir) * SUBSTEP_M,
+      a.y + Math.sin(dir) * SUBSTEP_M,
+      pivoting ? 0.3 * budget : budget,
     );
     if (step < 1e-6) break;
     moved += step;
-    left -= step;
+    left -= budget;
   }
   return moved;
 }
@@ -908,7 +944,9 @@ export function applyHit(
   }
   const rule = WOUND_RULES[zone];
   const small = a.species === 'hare' ? 0.5 : 1;
-  const wound = newWound(zone, rule.blood, rule.bleed, rule.bleedFor, now, tainted, lodgedArrow);
+  // An arrow still in the body plugs its own hole: only an entry wound bleeds.
+  const bleed = rule.bleed * (lodgedArrow ? 0.6 : 1);
+  const wound = newWound(zone, rule.blood, bleed, rule.bleedFor, now, tainted, lodgedArrow);
   wound.fleeLeft = nextRange(rng, rule.flee[0], rule.flee[1]) * small;
   wound.diesAfterRun = rule.diesAfterRun ?? false;
   const survives = chance(rng, rule.survive ?? 0);
@@ -1006,7 +1044,7 @@ function behaveWounded(a: Animal, ctx: Ctx): number {
   if (a.activity === 'fleeing') {
     const rule = WOUND_RULES[w.zone as keyof typeof WOUND_RULES];
     const speed = def.speed.flee * (rule?.speed ?? 1);
-    const moved = flee(a, ctx, Math.min(w.fleeLeft, (speed * ctx.dt) / 60));
+    const moved = flee(a, ctx, Math.min(w.fleeLeft, runDistance(a, ctx, speed)));
     w.fleeLeft -= moved;
     if (w.fleeLeft <= 0.5 || moved < 1e-3) {
       if (w.diesAfterRun) {

@@ -21,6 +21,7 @@ import {
   canHoldBreath,
   castArrow,
   gaussian,
+  jumpTheString,
   MAX_RELEASE_LEAD_S,
   relativeAngle,
   scatter,
@@ -141,13 +142,16 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
   const at = state.time + clamp(lead, 0, MAX_RELEASE_LEAD_S) * GAME_SECONDS_PER_REAL_SECOND;
   const drift = sway(swayInput(bow, d, moving, p.knowledge.hands.bow), at);
   const sigma = scatter(d, a.speed, p.knowledge.hands.bow);
-  const u = bow.aimU + drift.u + gaussian(rng) * sigma;
-  const v = bow.aimV + drift.v + gaussian(rng) * sigma;
+  // An animal on edge may jump the string: where you aimed is no longer where the body is.
+  const jump = jumpTheString(a.species, theta, d, a.awareness, rng);
+  const u = bow.aimU + drift.u + gaussian(rng) * sigma + jump.du;
+  const v = bow.aimV + drift.v + gaussian(rng) * sigma + jump.dv;
+  const ducked = Math.hypot(jump.du, jump.dv) > 0.05;
   // Twigs and branches in the way can turn an arrow.
   const brush = sightlineObstruction(map, p.x, p.y, a.x, a.y);
   const result = chance(rng, brush * 0.9)
     ? { zone: 'miss' as const, passThrough: true, tainted: false }
-    : castArrow(a.species, theta, u, v, rng, isHeadDown(a));
+    : castArrow(a.species, theta, u, v, rng, isHeadDown(a), d);
   p.arrows--;
   // Every shot is practice; a clean one teaches more.
   const clean = result.zone === 'heart' || result.zone === 'lungs';
@@ -206,6 +210,7 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
     animalId: a.id,
     hit,
     dropped: result.zone === 'spine',
+    ducked,
     fromX: p.x,
     fromY: p.y,
     atX: a.x,

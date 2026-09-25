@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Terrain } from '../src/content/terrain';
 import { fromCalendar } from '../src/core/time';
-import { ALARMED, dayPart, SUSPICIOUS } from '../src/sim/animals';
+import { ALARMED, animalContext, dayPart, SUSPICIOUS, startFlight } from '../src/sim/animals';
 import { playerCanSee, sightlineObstruction } from '../src/sim/perception';
 import { getRegionMap, isWalkable } from '../src/sim/region';
 import type { Animal } from '../src/sim/state';
@@ -120,6 +120,34 @@ describe('senses', () => {
     for (let i = 0; i < 60; i++) step(world, [{ type: 'move', x: 0, y: 0, gait: 'walk' }], 60);
     // Once it calms down it doesn't stay pinned to the edge.
     expect(Math.min(a.x, a.y, 256 - a.x, 256 - a.y)).toBeGreaterThan(8);
+  });
+
+  it('a startled deer gets up to speed and spins round before it runs flat out', () => {
+    /** Metres covered in each tenth of a real second after a scare from the west. */
+    const run = (heading: number) => {
+      const { world, a } = lone('roe');
+      world.weather = { windFromDeg: 0, windSpeed: 1 };
+      Object.assign(world.player, { x: CENTRE.x - 120, y: CENTRE.y + 100 });
+      Object.assign(a, { x: CENTRE.x, y: CENTRE.y, heading, speed: 0, activity: 'feeding' });
+      Object.assign(a, { alarmX: CENTRE.x - 30, alarmY: CENTRE.y, until: world.time + 7200 });
+      startFlight(a, animalContext(world, getRegionMap(world.seed, world.regionId), []));
+      const steps: number[] = [];
+      for (let i = 0; i < 15; i++) {
+        const x0 = a.x;
+        const y0 = a.y;
+        step(world, [], 6);
+        steps.push(Math.hypot(a.x - x0, a.y - y0));
+      }
+      return steps;
+    };
+    const facingAway = run(0);
+    // Full flight is 20 m a second: 2 m a tick. It starts well short of that and gets there.
+    expect(facingAway[0]).toBeLessThan(0.6);
+    expect(facingAway[14]).toBeGreaterThan(1.9);
+    // Facing the danger it has to turn first, and loses ground doing it.
+    const facingDanger = run(Math.PI);
+    const sum = (xs: number[]) => xs.slice(0, 6).reduce((s, x) => s + x, 0);
+    expect(sum(facingDanger)).toBeLessThan(sum(facingAway));
   });
 
   it('a herd runs together', () => {

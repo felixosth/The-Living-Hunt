@@ -30,10 +30,15 @@ export function wrapDeg(deg: number): number {
 
 /** Linear interpolation between two angles (radians) along the shortest arc. */
 export function lerpAngle(a: number, b: number, t: number): number {
+  return a + angleDiff(a, b) * t;
+}
+
+/** The signed turn (radians, in [-π, π]) from angle `a` to angle `b` along the shortest arc. */
+export function angleDiff(a: number, b: number): number {
   let d = (b - a) % TAU;
   if (d > Math.PI) d -= TAU;
   if (d < -Math.PI) d += TAU;
-  return a + d * t;
+  return d;
 }
 
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;

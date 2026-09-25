@@ -332,12 +332,15 @@ async function boot(): Promise<void> {
         addNotice('You pick up the trail again.');
         return;
       case 'shot':
+        if (event.ducked) addNotice('It jumped at the sound of the string!');
         addNotice(
           event.dropped
             ? 'The arrow strikes. It drops on the spot.'
             : event.hit
               ? 'Thwack. The arrow strikes home.'
-              : 'The arrow flies wide.',
+              : event.ducked
+                ? 'The arrow flies where it stood.'
+                : 'The arrow flies wide.',
         );
         return;
       case 'died':

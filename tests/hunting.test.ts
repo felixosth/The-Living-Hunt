@@ -7,6 +7,8 @@ import { getRegionMap } from '../src/sim/region';
 import {
   angleName,
   castArrow,
+  jumpTheString,
+  penetration,
   project,
   projectAnatomy,
   relativeAngle,
@@ -154,6 +156,43 @@ describe('where the arrow goes', () => {
     }
     const practised = sway({ ...input, bowXp: 5 }, 1000 + 6 * sec);
     expect(practised.drift).toBeCloseTo(0.8 * sway(input, 1000 + 6 * sec).drift);
+  });
+
+  it('an animal on edge jumps the string at range, never when unaware or close', () => {
+    const jumps = (awareness: number, distance: number) => {
+      const rng = seedRng(11);
+      let moved = 0;
+      for (let i = 0; i < 200; i++) {
+        const j = jumpTheString('roe', BROADSIDE, distance, awareness, rng);
+        if (Math.hypot(j.du, j.dv) > 0.05) moved++;
+      }
+      return moved;
+    };
+    expect(jumps(0.1, 40)).toBe(0);
+    expect(jumps(0.9, 6)).toBe(0);
+    expect(jumps(0.9, 30)).toBeGreaterThan(150);
+    expect(jumps(0.9, 30)).toBeGreaterThan(jumps(0.4, 30));
+    // It drops and lurches forward: relative to the body, the arrow strikes high and back.
+    const j = jumpTheString('roe', BROADSIDE, 35, 1, seedRng(2));
+    expect(j.dv).toBeGreaterThan(0.1);
+    expect(j.du).toBeLessThan(-0.1);
+  });
+
+  it('arrows go less deep at long range, so more of them stay in the body', () => {
+    expect(penetration('roe', 50)).toBeLessThan(penetration('roe', 10));
+    // Slightly quartering away: a long path through the body, past the far shoulder.
+    const theta = Math.PI / 3;
+    const { u, v } = centreOf('lungs', theta);
+    const stopped = (distance: number) => {
+      const rng = seedRng(5);
+      let n = 0;
+      for (let i = 0; i < 300; i++) {
+        const r = castArrow('roe', theta, u, v, rng, false, distance);
+        if (!r.passThrough) n++;
+      }
+      return n;
+    };
+    expect(stopped(45)).toBeGreaterThan(stopped(5));
   });
 
   it('every shot is practice for the bow arm', () => {

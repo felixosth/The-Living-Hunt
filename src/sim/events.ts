@@ -33,6 +33,8 @@ export type SimEvent =
       animalId: number;
       hit: boolean;
       dropped: boolean;
+      /** It jumped the string: it moved at the twang, before the arrow arrived. */
+      ducked: boolean;
       fromX: number;
       fromY: number;
       atX: number;

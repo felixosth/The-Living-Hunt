@@ -132,7 +132,21 @@ export interface ShotResult {
 
 const LETHALITY: PartId[] = ['heart', 'lungs', 'liver', 'gut', 'ham'];
 
-/** Follow an arrow striking the view plane at (u, v) through an animal at angle `theta`. */
+/** How far an arrow gets through a roe deer, metres of body: less at long range. */
+export function penetration(species: SpeciesId, distance: number): number {
+  const far = Math.min(1, Math.max(0, distance) / BOW_RANGE_M);
+  return (species === 'hare' ? 2 : 0.7) * (1 - 0.25 * far);
+}
+
+/** Chance the shoulder blade stops the arrow; a slower arrow at range is stopped more often. */
+function shoulderStops(distance: number): number {
+  return 0.55 + 0.3 * Math.min(1, Math.max(0, distance) / BOW_RANGE_M);
+}
+
+/**
+ * Follow an arrow striking the view plane at (u, v) through an animal at
+ * angle `theta`, shot from `distance` metres.
+ */
 export function castArrow(
   species: SpeciesId,
   theta: number,
@@ -140,6 +154,7 @@ export function castArrow(
   v: number,
   rng: RngState,
   headDown = false,
+  distance = 0,
 ): ShotResult {
   const parts = anatomyFor(species, headDown);
   const hits = parts
@@ -167,12 +182,12 @@ export function castArrow(
     return { zone: 'graze', passThrough: true, tainted: false };
   }
   // A bow arrow carries enough to pass through a roe deer, unless bone stops it.
-  let budget = species === 'hare' ? 2 : 0.7;
+  let budget = penetration(species, distance);
   const found = new Set<PartId>();
   for (const h of hits) {
     if (h.part === outer.part || h.t[0] > enter + budget) continue;
     if (h.part.id === 'shoulder') {
-      if (chance(rng, 0.65)) {
+      if (chance(rng, shoulderStops(distance))) {
         const vital = LETHALITY.find((id) => found.has(id) && id !== 'ham');
         return vital
           ? { zone: vital as HitZone, passThrough: false, tainted: found.has('gut') }
@@ -322,6 +337,47 @@ function phases(target: number, drawnAt: number): number[] {
 export function scatter(distance: number, targetSpeed: number, bowXp: number): number {
   const steady = 1 - 0.2 * practiceShare(bowXp);
   return Math.min(1.5, 0.002 * distance * steady + 0.02 * targetSpeed);
+}
+
+/** Arrow speed from a hunting bow, metres per real second. */
+export const ARROW_SPEED = 60;
+const SOUND_SPEED = 343;
+
+export interface StringJump {
+  /** How far the body moved on the view plane before the arrow arrived, metres. */
+  du: number;
+  dv: number;
+}
+
+/**
+ * Jumping the string: an animal already on edge reacts to the twang of the
+ * string. It drops to load its legs and lurches forward before the arrow
+ * gets there, so the arrow strikes higher and further back than you aimed:
+ * over its back, into the spine, or back into the liver and gut.
+ *
+ * Only an animal that is suspicious or alarmed reacts at all, and only at
+ * range: close up, the arrow is there before it can move.
+ */
+export function jumpTheString(
+  species: SpeciesId,
+  theta: number,
+  distance: number,
+  awareness: number,
+  rng: RngState,
+): StringJump {
+  const still = { du: 0, dv: 0 };
+  if (awareness < 0.3) return still;
+  const edge = Math.min(1, (awareness - 0.3) / 0.5);
+  if (!chance(rng, 0.25 + 0.65 * edge)) return still;
+  // The sound reaches it first; a tense animal reacts in a tenth of a second or so.
+  const reaction = 0.18 - 0.08 * edge;
+  const moving = distance / ARROW_SPEED - distance / SOUND_SPEED - reaction;
+  if (moving <= 0) return still;
+  const k = species === 'hare' ? 0.45 : 1;
+  const drop = Math.min(0.25 * k, 1.0 * k * moving);
+  const lurch = Math.min(0.3 * k, 1.0 * k * moving);
+  // Relative to the body, the arrow's mark moves up and back towards the tail.
+  return { du: -lurch * Math.sin(theta), dv: drop };
 }
 
 /** A standard normal sample (Box–Muller). */
