@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { PartId } from '../content/anatomy';
 import { SPECIES } from '../content/species';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
-import { type Projected, projectAnatomy, sway } from '../sim/shot';
+import { type Projected, projectAnatomy, scatter, sway } from '../sim/shot';
 import type { BowView } from '../sim/snapshot';
 import { sinceTick, snapshot } from './store';
 
@@ -153,16 +153,17 @@ function Reticle({
   time,
   color,
   k,
-  r,
 }: {
   bow: BowView;
   time: number;
   color: string;
   k: number;
-  r: number;
 }) {
   useEveryFrame();
-  const drift = sway(bow.sway, time + sinceTick() * GAME_SECONDS_PER_REAL_SECOND);
+  const t = time + sinceTick() * GAME_SECONDS_PER_REAL_SECOND;
+  const drift = sway(bow.sway, t);
+  // The circle shows how ready you are: two standard deviations of the scatter.
+  const r = Math.max(0.01, 2 * scatter(bow.sway, t));
   const x = bow.aimU + drift.u;
   const y = -(bow.aimV + drift.v);
   const line = { stroke: color, 'stroke-width': 0.008 * k };
@@ -202,7 +203,6 @@ export function ShotInset() {
           rv: lungs.rv * 1.6,
         }
       : null;
-  const r = Math.max(0.01, 2 * bow.sigma);
   const reticle =
     bow.breath === 'holding' ? '#9ec3d8' : bow.breath === 'shaking' ? '#e0806a' : '#e8c16a';
 
@@ -237,7 +237,7 @@ export function ShotInset() {
             dash={bow.anatomyLevel < 4 ? '0.025 0.015' : undefined}
           />
         ))}
-        <Reticle bow={bow} time={s.time} color={reticle} k={k} r={r} />
+        <Reticle bow={bow} time={s.time} color={reticle} k={k} />
       </svg>
       <div class="inset-info">
         <span>

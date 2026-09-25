@@ -238,6 +238,8 @@ export interface SwayInput extends BreathTimes {
   moving: boolean;
   /** Experience with the bow. */
   bowXp: number;
+  /** How fast the target is moving, metres per game minute. */
+  targetSpeed: number;
 }
 
 /** The sway input for a drawn bow. */
@@ -246,6 +248,7 @@ export function swayInput(
   distance: number,
   moving: boolean,
   bowXp: number,
+  targetSpeed = 0,
 ): SwayInput {
   return {
     target: bow.target,
@@ -255,6 +258,7 @@ export function swayInput(
     distance,
     moving,
     bowXp,
+    targetSpeed,
   };
 }
 
@@ -331,13 +335,30 @@ function phases(target: number, drawnAt: number): number[] {
 
 /**
  * Scatter you can't see or time: release, string and arrow. One standard
- * deviation of the landing point around the aim, in metres at the target.
- * A moving target adds a little: its gait isn't perfectly steady. (That it
- * moves on while the arrow flies is `travelDuringFlight`.)
+ * deviation of the landing point around the crosshair, in metres at the
+ * target. It shows how ready you are: twice as wide just after the draw,
+ * settling with the drift, a little tighter with a held breath, and wider
+ * again when you shake or your arms tire. A moving target adds a little too,
+ * since its gait isn't perfectly steady. (That it moves on while the arrow
+ * flies is `travelDuringFlight`.)
  */
-export function scatter(distance: number, targetSpeed: number, bowXp: number): number {
-  const steady = 1 - 0.2 * practiceShare(bowXp);
-  return Math.min(1.5, 0.002 * distance * steady + 0.006 * targetSpeed);
+export function scatter(input: SwayInput, now: number): number {
+  const held = Math.max(0, now - input.drawnAt);
+  const steady = 1 - 0.2 * practiceShare(input.bowXp);
+  let form = 1 + Math.exp(-held / SETTLE_S);
+  if (held > TIRE_AFTER_S) form += Math.min(1, (0.05 * (held - TIRE_AFTER_S)) / REAL);
+  switch (breathState(input, now)) {
+    case 'holding':
+      form *= 0.85;
+      break;
+    case 'shaking':
+      form *= 1 + Math.min(1, (now - input.breathAt - BREATH_HOLD_S) / (2 * SHAKE_S));
+      break;
+    case 'recovering':
+      form *= 1.1;
+      break;
+  }
+  return Math.min(1.5, 0.002 * input.distance * steady * form + 0.006 * input.targetSpeed);
 }
 
 /** How long an arrow takes to reach the target, in real seconds (game minutes at normal speed). */

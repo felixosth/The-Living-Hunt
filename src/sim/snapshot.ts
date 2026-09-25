@@ -183,16 +183,17 @@ function bowView(state: WorldState, map: RegionMap): BowView | null {
   const distance = Math.hypot(a.x - player.x, a.y - player.y);
   const theta = relativeAngle(a.heading, player.x, player.y, a.x, a.y);
   const now = state.time;
+  const sway = swayInput(bow, distance, isMoving(player), player.knowledge.hands.bow, a.speed);
   return {
     targetId: a.id,
     species: a.species,
     distance,
     theta,
     angle: angleName(theta),
-    sigma: scatter(distance, a.speed, player.knowledge.hands.bow),
+    sigma: scatter(sway, now),
     aimU: bow.aimU,
     aimV: bow.aimV,
-    sway: swayInput(bow, distance, isMoving(player), player.knowledge.hands.bow),
+    sway,
     breath: breathState(bow, now),
     brush: sightlineObstruction(map, player.x, player.y, a.x, a.y),
     anatomyLevel: level(player.knowledge.species[a.species]),

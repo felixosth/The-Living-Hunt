@@ -101,9 +101,43 @@ describe('where the arrow goes', () => {
   });
 
   it('scatter grows with distance and a moving target, and practice tightens it', () => {
-    expect(scatter(40, 0, 0)).toBeGreaterThan(scatter(20, 0, 0));
-    expect(scatter(20, 9, 0)).toBeGreaterThan(scatter(20, 0, 0));
-    expect(scatter(20, 0, 5)).toBeCloseTo(0.8 * scatter(20, 0, 0));
+    const input: SwayInput = {
+      target: 1,
+      drawnAt: 0,
+      breathAt: 0,
+      breathOutAt: 0,
+      distance: 20,
+      moving: false,
+      bowXp: 0,
+      targetSpeed: 0,
+    };
+    const settled = 6 * GAME_SECONDS_PER_REAL_SECOND;
+    expect(scatter({ ...input, distance: 40 }, settled)).toBeGreaterThan(scatter(input, settled));
+    expect(scatter({ ...input, targetSpeed: 9 }, settled)).toBeGreaterThan(scatter(input, settled));
+    expect(scatter({ ...input, bowXp: 5 }, settled)).toBeCloseTo(0.8 * scatter(input, settled));
+  });
+
+  it('the scatter shows how ready you are: settling, breath, shaking and tired arms', () => {
+    const sec = GAME_SECONDS_PER_REAL_SECOND;
+    const input: SwayInput = {
+      target: 1,
+      drawnAt: 0,
+      breathAt: 0,
+      breathOutAt: 0,
+      distance: 20,
+      moving: false,
+      bowXp: 0,
+      targetSpeed: 0,
+    };
+    const at = (i: SwayInput, realS: number) => scatter(i, realS * sec);
+    // About twice as wide on the draw, settled within a few seconds.
+    expect(at(input, 0)).toBeCloseTo(2 * at(input, 10), 1);
+    expect(at(input, 3)).toBeLessThan(1.15 * at(input, 10));
+    // Tighter with a held breath, wider when shaking, and wider as the arms tire.
+    const held = { ...input, breathAt: 4 * sec };
+    expect(at(held, 6)).toBeLessThan(at(input, 6));
+    expect(at(held, 11)).toBeGreaterThan(at(input, 11));
+    expect(at(input, 20)).toBeGreaterThan(at(input, 10));
   });
 
   it('the aim drifts in real time: settling, a held breath, shaking and tiring arms', () => {
@@ -116,6 +150,7 @@ describe('where the arrow goes', () => {
       distance: 20,
       moving: false,
       bowXp: 0,
+      targetSpeed: 0,
     };
     const wobble = (i: SwayInput, realS: number) => {
       const s = sway(i, realS * sec);
@@ -145,6 +180,7 @@ describe('where the arrow goes', () => {
       distance: 30,
       moving: false,
       bowXp: 0,
+      targetSpeed: 0,
     };
     let prev = sway(input, 1000 + 5 * sec);
     for (let t = 5; t < 11; t += 0.1) {

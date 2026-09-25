@@ -155,8 +155,9 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
   const moving = p.moveX !== 0 || p.moveY !== 0;
   // The arrow goes where the drifting aim was at the click, plus a scatter you can't time.
   const at = state.time + clamp(lead, 0, MAX_RELEASE_LEAD_S) * GAME_SECONDS_PER_REAL_SECOND;
-  const drift = sway(swayInput(bow, d, moving, p.knowledge.hands.bow), at);
-  const sigma = scatter(d, a.speed, p.knowledge.hands.bow);
+  const input = swayInput(bow, d, moving, p.knowledge.hands.bow, a.speed);
+  const drift = sway(input, at);
+  const sigma = scatter(input, at);
   // An animal on edge may jump the string: where you aimed is no longer where the body is.
   const jump = jumpTheString(a.species, theta, d, a.awareness, rng);
   // It walks on while the arrow flies: the arrow strikes behind where you aimed.
