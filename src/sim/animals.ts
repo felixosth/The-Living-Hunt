@@ -482,14 +482,38 @@ function routine(a: Animal, ctx: Ctx): number {
     }
     case 'drinking':
       if (ctx.now >= a.until) {
+        // A leader waits until the whole group has had its drink.
+        if (herdStillDrinking(a, ctx)) {
+          a.until = ctx.now + 60;
+          return 0;
+        }
         a.lastDrink = ctx.now;
-        decide(a, ctx);
+        // Then it lingers, picking at what grows by the water.
+        begin(a, ctx, 'feeding', 10, 25);
       }
       return 0;
     default:
       if (ctx.now >= a.until) decide(a, ctx);
       return 0;
   }
+}
+
+/** Time every member of a group gets at the water, game seconds. */
+const MIN_DRINK_S = 8 * 60;
+/** A leader gives up waiting for stragglers after this long at the water. */
+const MAX_WAIT_S = 45 * 60;
+
+function herdStillDrinking(leader: Animal, ctx: Ctx): boolean {
+  if (ctx.now - leader.since > MAX_WAIT_S) return false;
+  return ctx.state.animals.some(
+    (m) =>
+      m !== leader &&
+      m.groupId === leader.id &&
+      !m.wound &&
+      m.activity !== 'dead' &&
+      m.activity !== 'fleeing' &&
+      (m.activity !== 'drinking' || ctx.now - m.since < MIN_DRINK_S),
+  );
 }
 
 function follow(a: Animal, leader: Animal, ctx: Ctx): number {
@@ -523,7 +547,7 @@ function poiKind(a: Animal, ctx: Ctx): PoiKind | null {
 /** Arrived at the goal area: start what it came to do. */
 function settle(a: Animal, ctx: Ctx): void {
   const kind = poiKind(a, ctx);
-  if (kind === 'water') begin(a, ctx, 'drinking', 5, 10);
+  if (kind === 'water') begin(a, ctx, 'drinking', 12, 25);
   else if (kind === 'feed') begin(a, ctx, 'feeding', 40, 90);
   else if (a.species === 'hare') begin(a, ctx, 'bedded', 20, 40);
   else begin(a, ctx, 'bedded', 80, 160);

@@ -150,6 +150,44 @@ describe('senses', () => {
     expect(sum(facingDanger)).toBeLessThan(sum(facingAway));
   });
 
+  it('a herd drinks together: every member gets its drink before the leader moves on', () => {
+    const world = createWorld(3);
+    const leader = world.animals.find(
+      (a) =>
+        a.species === 'roe' &&
+        a.home.water.length > 0 &&
+        world.animals.some((b) => b.groupId === a.id && b !== a),
+    ) as Animal;
+    const herd = world.animals.filter((b) => b.groupId === leader.groupId && b !== leader);
+    const map = getRegionMap(world.seed, world.regionId);
+    const water = map.pois[leader.home.water[0] as number] as { x: number; y: number };
+    // Keep the hunter well out of the way.
+    Object.assign(world.player, { x: water.x > 256 ? 20 : 490, y: water.y > 256 ? 20 : 490 });
+    world.weather = { windFromDeg: 0, windSpeed: 0.2 };
+    // The leader has nearly finished; the others are still on their way.
+    Object.assign(leader, {
+      x: water.x,
+      y: water.y,
+      goal: leader.home.water[0],
+      activity: 'drinking',
+      since: world.time - 20 * 60,
+      until: world.time + 60,
+      awareness: 0,
+    });
+    for (const m of herd) {
+      Object.assign(m, { x: water.x + 30, y: water.y, activity: 'travelling', awareness: 0 });
+    }
+    const drank = new Map<number, number>();
+    for (let i = 0; i < 90 && leader.activity === 'drinking'; i++) {
+      step(world, [], 60);
+      for (const m of herd) {
+        if (m.activity === 'drinking') drank.set(m.id, (drank.get(m.id) ?? 0) + 60);
+      }
+    }
+    expect(leader.activity).not.toBe('drinking');
+    for (const m of herd) expect(drank.get(m.id) ?? 0).toBeGreaterThanOrEqual(8 * 60);
+  });
+
   it('a herd runs together', () => {
     const world = createWorld(3);
     const herdLeader = world.animals.find(

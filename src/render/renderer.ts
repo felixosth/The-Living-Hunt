@@ -181,13 +181,16 @@ export class Renderer {
     const bottomRight = this.screenToWorld(width, height);
     this.air.update(
       curr,
-      pxM,
-      pyM,
       { x0: topLeft.x, y0: topLeft.y, x1: bottomRight.x, y1: bottomRight.y },
       this.zoom,
       now,
     );
-    this.arrows.update(this.zoom, now);
+    this.arrows.update(this.zoom, now, (id) => {
+      const b = curr.animals.find((a) => a.id === id);
+      if (!b) return null;
+      const a = prev.animals.find((p) => p.id === id) ?? b;
+      return { x: lerp(a.x, b.x, alpha), y: lerp(a.y, b.y, alpha) };
+    });
     this.drawDebug(curr);
     this.cues.draw(
       curr,

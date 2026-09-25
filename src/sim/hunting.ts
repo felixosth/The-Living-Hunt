@@ -146,7 +146,8 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
   const jump = jumpTheString(a.species, theta, d, a.awareness, rng);
   const u = bow.aimU + drift.u + gaussian(rng) * sigma + jump.du;
   const v = bow.aimV + drift.v + gaussian(rng) * sigma + jump.dv;
-  const ducked = Math.hypot(jump.du, jump.dv) > 0.05;
+  // A flinch of a few centimetres goes unnoticed; a real jump is worth telling.
+  const ducked = Math.hypot(jump.du, jump.dv) > 0.1;
   // Twigs and branches in the way can turn an arrow.
   const brush = sightlineObstruction(map, p.x, p.y, a.x, a.y);
   const result = chance(rng, brush * 0.9)

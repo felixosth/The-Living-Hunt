@@ -2,6 +2,10 @@
  * Arrows in flight: from the bow past the animal to where each one ends up,
  * in the animal or on the ground beyond it. A hit throws up a puff of cut
  * hair, which doesn't say where the arrow struck; the blood does that.
+ *
+ * The sim settles the shot the moment you release, but the animal is drawn
+ * moving on while the arrow flies. So an arrow that hit flies to where the
+ * animal is drawn, and one that went through carries on from there.
  */
 import { type Container, Graphics } from 'pixi.js';
 import { COLORS } from './palette';
@@ -9,13 +13,14 @@ import { COLORS } from './palette';
 const PX = 16; // PX_PER_M
 /** Drawn larger than life, like the animals, so it reads at a normal zoom. */
 const G = 2;
-/** Flight speed on screen, metres per real second: slower than a real arrow so you can follow it. */
-const SPEED = 55;
+/** Flight speed on screen, metres per real second: about a real hunting arrow's. */
+const SPEED = 90;
 const LYING_MS = 1500;
 const FADE_MS = 900;
 const PUFF_MS = 600;
 
 export interface ArrowShot {
+  animalId: number;
   fromX: number;
   fromY: number;
   atX: number;
@@ -54,9 +59,26 @@ export class ArrowFlights {
     });
   }
 
-  update(zoom: number, now: number): void {
+  /** `animalAt` gives where an animal is drawn now, or null if it isn't in view. */
+  update(
+    zoom: number,
+    now: number,
+    animalAt: (id: number) => { x: number; y: number } | null,
+  ): void {
     const g = this.g;
     g.clear();
+    for (const f of this.flights) {
+      if (!f.hit || now - f.start >= f.atT * f.duration) continue;
+      // Until it strikes, a hit tracks the animal as drawn.
+      const live = animalAt(f.animalId);
+      if (!live) continue;
+      const dx = live.x - f.atX;
+      const dy = live.y - f.atY;
+      f.atX += dx;
+      f.atY += dy;
+      f.endX += dx;
+      f.endY += dy;
+    }
     this.flights = this.flights.filter(
       (f) => now - f.start < f.duration + (f.lodged ? PUFF_MS : LYING_MS + FADE_MS),
     );
@@ -65,16 +87,23 @@ export class ArrowFlights {
       const t = Math.min(1, elapsed / f.duration);
       if (f.hit) this.drawPuff(g, f, elapsed, zoom);
       if (f.lodged && t >= 1) continue;
-      const dx = f.endX - f.fromX;
-      const dy = f.endY - f.fromY;
-      const total = Math.hypot(dx, dy);
-      const x = f.fromX + dx * t;
-      const y = f.fromY + dy * t;
+      // Two legs: bow to animal, then on to where it lands.
+      const [ax, ay, bx, by, k] =
+        t < f.atT
+          ? [f.fromX, f.fromY, f.atX, f.atY, f.atT > 0 ? t / f.atT : 1]
+          : [f.atX, f.atY, f.endX, f.endY, f.atT < 1 ? (t - f.atT) / (1 - f.atT) : 1];
+      const x = ax + (bx - ax) * k;
+      const y = ay + (by - ay) * k;
+      const total = Math.hypot(f.endX - f.fromX, f.endY - f.fromY);
       // A shallow arc: the arrow rises above its shadow and comes down again.
       const lift = t < 1 ? 4 * t * (1 - t) * Math.min(1.5, 0.03 * total) : 0;
       const alpha = t < 1 ? 1 : 1 - Math.max(0, elapsed - f.duration - LYING_MS) / FADE_MS;
       if (alpha <= 0) continue;
-      drawArrow(g, x, y, lift, Math.atan2(dy, dx), alpha, zoom);
+      const heading =
+        bx !== ax || by !== ay
+          ? Math.atan2(by - ay, bx - ax)
+          : Math.atan2(f.endY - f.fromY, f.endX - f.fromX);
+      drawArrow(g, x, y, lift, heading, alpha, zoom);
     }
   }
 

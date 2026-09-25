@@ -1,7 +1,6 @@
 /**
  * What the air is doing, drawn over the world: faint streaks blowing with the
- * wind, and a drift of your own scent carried downwind from where you stand.
- * If an animal sits in the drift, it can smell you.
+ * wind, more and longer the harder it blows. Your scent goes the same way.
  *
  * Purely visual: positions are in world metres, moved in real time and
  * seeded with Math.random, so nothing here feeds back into the simulation.
@@ -11,12 +10,8 @@ import type { Snapshot } from '../sim/snapshot';
 import { COLORS } from './palette';
 
 const PX = 16; // PX_PER_M
-/** Below this wind speed (m/s) nothing streaks and your scent pools around you. */
+/** Below this wind speed (m/s) nothing streaks. */
 const CALM_WIND = 0.5;
-/** Scent puffs released per real second. */
-const SCENT_RATE = 14;
-/** Longest a scent puff drifts, in real seconds. */
-const SCENT_LIFE_S = 14;
 /** How long the game can stay on one tick before the air counts as paused, ms. */
 const PAUSED_MS = 350;
 
@@ -26,15 +21,6 @@ interface Streak {
   age: number;
   life: number;
   wobble: number;
-}
-
-interface Puff {
-  x0: number;
-  y0: number;
-  angle: number;
-  speed: number;
-  age: number;
-  life: number;
 }
 
 export interface ViewRect {
@@ -47,8 +33,6 @@ export interface ViewRect {
 export class AirLayer {
   private g = new Graphics();
   private streaks: Streak[] = [];
-  private puffs: Puff[] = [];
-  private owed = 0;
   private lastFrame = 0;
   private lastTick = -1;
   private tickSeenAt = 0;
@@ -57,7 +41,7 @@ export class AirLayer {
     layer.addChild(this.g);
   }
 
-  update(s: Snapshot, px: number, py: number, view: ViewRect, zoom: number, now: number): void {
+  update(s: Snapshot, view: ViewRect, zoom: number, now: number): void {
     let dt = this.lastFrame === 0 ? 0 : Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
     if (s.tick !== this.lastTick) {
@@ -67,16 +51,14 @@ export class AirLayer {
       dt = 0;
     }
 
-    const { angle, halfAngle, range } = s.scent;
+    // The way the wind blows, which is the way your scent drifts.
+    const { angle } = s.scent;
     const wind = s.wind.speed;
-    const calm = wind < CALM_WIND;
     this.moveStreaks(dt, angle, wind, view);
-    this.movePuffs(dt, px, py, angle, halfAngle, range, wind, calm);
 
     const g = this.g;
     g.clear();
     this.drawStreaks(g, angle, wind, zoom);
-    this.drawPuffs(g, range);
   }
 
   private moveStreaks(dt: number, angle: number, wind: number, view: ViewRect): void {
@@ -105,39 +87,6 @@ export class AirLayer {
     };
   }
 
-  private movePuffs(
-    dt: number,
-    px: number,
-    py: number,
-    angle: number,
-    halfAngle: number,
-    range: number,
-    wind: number,
-    calm: boolean,
-  ): void {
-    for (const p of this.puffs) p.age += dt;
-    this.puffs = this.puffs.filter((p) => p.age < p.life);
-    this.owed += dt * SCENT_RATE;
-    // In still air scent creeps out a little way; in wind it's carried to the cone's end.
-    const speed = calm ? 1.2 : Math.max(2 + 2 * wind, range / SCENT_LIFE_S);
-    const life = Math.min(SCENT_LIFE_S, range / speed);
-    while (this.owed >= 1) {
-      this.owed -= 1;
-      // Most scent drifts near the middle of the cone; a little reaches its edges.
-      const spread = calm
-        ? (Math.random() * 2 - 1) * Math.PI
-        : (Math.random() + Math.random() - 1) * halfAngle;
-      this.puffs.push({
-        x0: px,
-        y0: py,
-        angle: angle + spread,
-        speed: speed * (0.8 + Math.random() * 0.4),
-        age: 0,
-        life,
-      });
-    }
-  }
-
   private drawStreaks(g: Graphics, angle: number, wind: number, zoom: number): void {
     if (this.streaks.length === 0) return;
     const len = Math.min(7, 1.2 + 0.5 * wind) * PX;
@@ -153,22 +102,6 @@ export class AirLayer {
       g.moveTo(x - dx, y - dy)
         .lineTo(x, y)
         .stroke({ width: 1.4 / zoom, color: COLORS.wind, alpha, cap: 'round' });
-    }
-  }
-
-  private drawPuffs(g: Graphics, range: number): void {
-    for (const p of this.puffs) {
-      const d = p.speed * p.age;
-      const t = p.age / p.life;
-      const fadeIn = Math.min(1, p.age / 0.4);
-      const alpha = 0.18 * fadeIn * (1 - t) ** 1.4;
-      if (alpha <= 0.01) continue;
-      // Scent spreads as it drifts.
-      const r = (0.5 + 0.05 * Math.min(d, range)) * PX;
-      g.circle((p.x0 + Math.cos(p.angle) * d) * PX, (p.y0 + Math.sin(p.angle) * d) * PX, r).fill({
-        color: COLORS.scent,
-        alpha,
-      });
     }
   }
 }
