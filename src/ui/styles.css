@@ -404,6 +404,13 @@ kbd {
   color: var(--danger);
 }
 
+.intro {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 460px;
+}
+
 .summary {
   top: 50%;
   left: 50%;

@@ -4,6 +4,21 @@
 
 **Goal:** one forest, roe deer and hares, one bow. Finding a sign, working out the animal, stalking it against the wind, taking a fair shot, following the blood and carrying the animal home should take 10–20 minutes and make you want to go again.
 
+## Status
+
+All four steps are built and deployed; the fun gate needs playtesting. Differences from the plan below:
+
+- The shot inset sits in the bottom-right corner. Relative mouse movement nudges the aim across the side view, starting from the middle of the body, so no pointer lock is needed.
+- Every roe deer group has two bedding thickets, and a spooked deer heads for the one furthest from the danger.
+- The hunt summary counts time from the first sign of *that* animal you found.
+- Tuning knobs, if something feels off:
+  - awareness rates and the decay in `src/content/species.ts` and `src/sim/animals.ts`;
+  - noise and visibility in `src/sim/stealth.ts`;
+  - sign lifetimes in `src/sim/signs.ts`;
+  - scan and follow chances in `src/sim/tracking.ts`;
+  - the reticle in `src/sim/shot.ts`;
+  - the wound table in `src/sim/animals.ts`.
+
 ## The hunt this milestone has to deliver
 
 1. You leave **Einar's cabin** at dawn. The wind is from the south-west.
@@ -89,9 +104,9 @@ Each step ends playable, is pushed to `main` and deploys.
 
 ### Step 5 — Finish
 
-- **Controls and help overlay** (`H`), and `T` to wait at 10×.
-- **Headless runner stats:** animals, activity budgets, signs over time, and a scripted hunter test.
-- **Browser smoke test:** scan, inspect and draw.
+- **Controls and help overlay** (`H`), an intro card from Einar's journal, and `T` to wait at 10×.
+- **Headless runner stats:** animals, activity budgets, sounds, sightings and signs.
+- **Browser smoke test:** the intro, scanning, the journal and the help panel. The shot and the recovery are covered by headless tests.
 - **Docs:** README controls and roadmap status.
 
 ## Technical decisions

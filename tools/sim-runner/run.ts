@@ -41,6 +41,7 @@ console.log(`The Living Hunt — headless run
   wall time   ${result.wallMs.toFixed(0)} ms (${simDaysPerSecond.toFixed(0)} game days per second)
   events      ${eventCounts.hourStarted ?? 0} hours · ${eventCounts.dayStarted ?? 0} days · ${eventCounts.seasonStarted ?? 0} seasons · ${eventCounts.sound ?? 0} sounds heard · ${eventCounts.sighted ?? 0} sightings
   animals     ${describeAnimals(state)}
+  signs       ${state.signs.count.toLocaleString('en')} on the ground
   player      (${state.player.x.toFixed(1)}, ${state.player.y.toFixed(1)}) m · ${describePlayerGround(state)}
   wind        from ${compassName(state.weather.windFromDeg)} at ${state.weather.windSpeed.toFixed(1)} m/s
   state hash  ${result.hash}`);

@@ -424,6 +424,8 @@ The shot inset and the HUD are DOM (Preact) layered over the canvas.
 
 ## 19. Project layout
 
+This is the target layout. Until the systems grow, M1 keeps the micro level as flat modules in `src/sim`: `animals.ts`, `perception.ts`, `stealth.ts`, `nav.ts`, `signs.ts`, `signEmission.ts`, `reading.ts`, `tracking.ts`, `knowledge.ts`, `shot.ts` and `hunting.ts`.
+
 ```
 /
 ├─ index.html

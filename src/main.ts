@@ -24,6 +24,7 @@ import {
   type GameActions,
   godView,
   helpOpen,
+  introOpen,
   journalOpen,
   perf,
   reading,
@@ -159,6 +160,10 @@ async function boot(): Promise<void> {
 
   window.addEventListener('keydown', (e) => {
     if (e.repeat || (e.target as HTMLElement | null)?.tagName === 'INPUT') return;
+    if (introOpen.value) {
+      introOpen.value = false;
+      return;
+    }
     if (e.code === 'Backquote') debugOpen.value = !debugOpen.value;
     // T: wait (10×), again for normal speed. P: pause.
     if (e.code === 'KeyT') actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
@@ -247,6 +252,9 @@ async function boot(): Promise<void> {
     actions.draw(target);
   };
   stage.addEventListener('contextmenu', (e) => e.preventDefault());
+  stage.addEventListener('mousedown', () => {
+    introOpen.value = false;
+  });
   stage.addEventListener('mousedown', (e) => {
     if (e.button === 2) startDraw(e);
     else if (e.button === 0 && session.curr.bow) actions.release();

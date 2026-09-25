@@ -38,6 +38,10 @@ test('boots, walks, saves and loads', async ({ page }) => {
   await page.goto('/?seed=7');
   await expect(page.locator('#game-canvas')).toBeVisible();
   await expect(page.getByTestId('hud')).toContainText('Autumn 8, Year 1');
+  // The intro closes on any key.
+  await expect(page.getByTestId('intro')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('intro')).toBeHidden();
 
   // Walking east moves the player.
   const start = await snap(page);

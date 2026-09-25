@@ -3,6 +3,7 @@ import { DebugPanel } from './DebugPanel';
 import { Help } from './Help';
 import { Hud } from './Hud';
 import { HuntSummary } from './HuntSummary';
+import { Intro } from './Intro';
 import { Journal } from './Journal';
 import { ReadingCard } from './ReadingCard';
 import { ShotInset } from './ShotInset';
@@ -17,6 +18,7 @@ function App({ actions }: { actions: GameActions }) {
       <Journal />
       <ShotInset />
       <HuntSummary />
+      <Intro />
       {debugOpen.value && <DebugPanel actions={actions} />}
       <div class="notices" data-testid="notices">
         {notices.value.map((n) => (

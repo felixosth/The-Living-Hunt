@@ -20,12 +20,24 @@ Add `?seed=123` to the URL to generate a different world.
 | Key | Action |
 |---|---|
 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrows | Move |
-| <kbd>Shift</kbd> | Run |
-| <kbd>C</kbd> | Toggle sneaking |
+| <kbd>Shift</kbd> | Run (fast and loud) |
+| <kbd>C</kbd> | Toggle sneaking (slow, quiet, low) |
+| <kbd>Q</kbd> | Scan the ground around you for signs |
+| Click a found sign | Read it (you have to be close) |
+| <kbd>F</kbd> | Follow the trail of the sign you read, or stop following |
+| Right mouse (hold) on an animal | Draw the bow; the shot inset shows its side view |
+| Mouse, then left click | Aim on the side view, then loose the arrow |
+| <kbd>Space</kbd> (hold, while drawn) | Hold your breath for a steadier aim |
+| <kbd>E</kbd> | Field-dress, pick up, put down, or bring an animal into the cabin |
+| <kbd>J</kbd> | Journal: what you know |
+| <kbd>T</kbd> / <kbd>P</kbd> | Wait (10×, stops when something stirs) / pause |
+| <kbd>H</kbd> | All controls |
 | Mouse wheel | Zoom |
-| <kbd>`</kbd> | Debug panel: pause and time scale, quicksave/quickload, export/import saves, new world, state hash |
+| <kbd>`</kbd> | Debug panel: time scale, saves, new world, state hash, **god view** |
 
 At 1× speed a game minute passes every real second, so a full day lasts about 24 minutes.
+
+**How to hunt.** The wind arrow shows where your scent drifts: animals downwind of you will smell you and run. Walking is heard and seen; sneaking on moss and trails is not. Deer bed in thickets by day and feed on the meadows at dawn and dusk; their prints are clearest in the mud at the fords. Read signs to learn which way an animal went and how long ago, follow its trail, and take a broadside shot at the lungs from close. Then read the blood before you follow: a lung-shot deer goes down quickly, a gut-shot one will run far if you push it. Carry it back to the cabin for a summary of the hunt.
 
 ## Development
 
@@ -52,7 +64,8 @@ The simulation (`src/sim`, `src/core`, `src/content`) is pure and deterministic:
 | [Game Design](docs/GAME_DESIGN.md) | Pillars, setting, core loops, a hunt step by step, field systems (stealth, wind, signs, the shot, traps), ecology, weather, legends, economy, contracts, rumours, progression, the journal |
 | [Technical Plan](docs/TECHNICAL_PLAN.md) | Stack (TypeScript, Vite, PixiJS, Preact), a pure deterministic simulation core, two-scale macro/micro simulation, the causal chronicle, data models, the ecology and economy models, tooling, testing, performance budgets |
 | [Roadmap](docs/ROADMAP.md) | Milestones M0–M7 with fun gates, frozen v0.1 scope, backlog, risks |
+| [M1 plan](docs/M1_PLAN.md) | How the fun prototype works: the hunt it must deliver, mechanics, numbers, technical choices |
 
 ## Status
 
-**M0: Foundations** is built: a generated test forest you can walk around at any time of day or night, with a 63° N calendar and sun, placeholder wind, save/load, a debug panel, a headless runner, and CI. Next is **M1: "Tracks in the mud"**, the fun prototype with roe deer, hares, signs and the bow.
+**M0: Foundations** and **M1: "Tracks in the mud"** are built. M1 is the fun prototype: one forest region (Granåsen) with fords, game trails and Einar's cabin; roe deer and mountain hares with daily routines, senses and awareness; signs you scan for, read and follow, with knowledge that improves as you confirm readings; and the bow, with a shot inset, an anatomy-based hit model, blood trails, field dressing, carrying and a hunt summary. See the [M1 plan](docs/M1_PLAN.md) for the mechanics and numbers. Next is **M2: "The weather turns"**.

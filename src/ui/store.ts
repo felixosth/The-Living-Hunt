@@ -54,6 +54,7 @@ export const toast = signal<Toast | null>(null);
 export const reading = signal<Reading | null>(null);
 export const journalOpen = signal(false);
 export const helpOpen = signal(false);
+export const introOpen = signal(true);
 /** The summary of the hunt just brought home. */
 export const summary = signal<HuntSummary | null>(null);
 

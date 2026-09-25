@@ -43,6 +43,8 @@
 
 **Fun gate:** going from *first sign found* to *animal recovered* takes 10–20 minutes, and you want to do it again. Wind and stealth decisions clearly matter. There are at least three distinct ways to fail a hunt, and they all feel fair.
 
+**Status: built; the fun gate needs playtesting.** Everything above is in, built in four playable steps (see the [M1 plan](M1_PLAN.md)). Tests cover routines, senses (winded, unseen, flushed), sign readings (property-tested to always contain the truth), trail following, the hit model and a full hunt from shot to cabin. The ways to fail are all there: being winded, heard or seen, a poor shot, pushing a wounded animal, and losing the trail. What's left is tuning the numbers by playing.
+
 ---
 
 ### M2 — "The weather turns" (a living region)
@@ -162,4 +164,4 @@ Anything not in this table waits for the backlog.
 
 ## Where to start
 
-The very next step is **M0**: scaffold the project and deploy an empty, moving, saveable world to GitHub Pages. Straight after that, **M1**, one deer in one forest, answers the most important question in the whole plan.
+M0 and M1 are built. The next step is to **playtest M1 against its fun gate** and tune it, then start **M2**.
