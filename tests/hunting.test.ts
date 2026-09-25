@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ANATOMY, type PartId } from '../src/content/anatomy';
 import { seedRng } from '../src/core/rng';
+import { GAME_SECONDS_PER_REAL_SECOND } from '../src/core/time';
 import { animalContext, applyHit } from '../src/sim/animals';
 import { getRegionMap } from '../src/sim/region';
 import {
@@ -112,6 +113,28 @@ describe('where the arrow goes', () => {
     const held = { ...bow, breathAt: 25 };
     expect(reticleSigma(held, 30, 20, false, 0)).toBeLessThan(reticleSigma(bow, 30, 20, false, 0));
   });
+
+  it('the bow keeps real-time timings: settling, a held breath and tiring arms', () => {
+    const sec = GAME_SECONDS_PER_REAL_SECOND;
+    const bow: BowState = {
+      target: 1,
+      drawnAt: 0,
+      aimU: 0,
+      aimV: 0.5,
+      breathAt: 0,
+      breathOutAt: 0,
+    };
+    const sigma = (b: BowState, realS: number) => reticleSigma(b, realS * sec, 20, false, 0);
+    // Settled within about three seconds, and steady for ten.
+    expect(sigma(bow, 3)).toBeLessThan(0.5 * sigma(bow, 0));
+    expect(sigma(bow, 10)).toBeLessThanOrEqual(sigma(bow, 3));
+    // Tired arms after twelve seconds.
+    expect(sigma(bow, 20)).toBeGreaterThan(sigma(bow, 10));
+    // A breath taken at 3 s steadies you until 8 s, then you shake.
+    const held = { ...bow, breathAt: 3 * sec };
+    expect(sigma(held, 7.5)).toBeLessThan(sigma(bow, 7.5));
+    expect(sigma(held, 10)).toBeGreaterThan(sigma(bow, 10));
+  });
 });
 
 /** A deer standing broadside 10 m east of a crouched hunter, the wind in the hunter's face. */
@@ -137,8 +160,8 @@ function setUp(): { world: WorldState; a: Animal } {
 function shoot(world: WorldState, a: Animal, organ: PartId): void {
   step(world, [{ type: 'draw', target: a.id }], 6);
   expect(world.player.bow).not.toBeNull();
-  // Settle for a few seconds, then aim where that organ is from here.
-  for (let i = 0; i < 4; i++) step(world, [], 6);
+  // Settle for three real seconds, then aim where that organ is from here.
+  for (let t = 0; t < 3 * GAME_SECONDS_PER_REAL_SECOND; t += 6) step(world, [], 6);
   const theta = relativeAngle(a.heading, world.player.x, world.player.y, a.x, a.y);
   const { u, v } = centreOf(organ, theta);
   step(

@@ -15,6 +15,11 @@ import { clamp, degToRad, radToDeg, smoothstep, TAU } from './math';
 export type GameTime = number;
 
 export const SECONDS_PER_MINUTE = 60;
+/**
+ * At normal speed a game minute passes every real second. Things measured in
+ * the player's own time, like holding a drawn bow, convert with this.
+ */
+export const GAME_SECONDS_PER_REAL_SECOND = 60;
 export const SECONDS_PER_HOUR = 3600;
 export const SECONDS_PER_DAY = 86_400;
 export const DAYS_PER_SEASON = 21;

@@ -166,7 +166,9 @@ async function boot(): Promise<void> {
     }
     if (e.code === 'Backquote') debugOpen.value = !debugOpen.value;
     // T: wait (10×), again for normal speed. P: pause.
-    if (e.code === 'KeyT') actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
+    // Not while the bow is drawn: the shot happens in real time.
+    if (e.code === 'KeyT' && !session.curr.bow)
+      actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
     if (e.code === 'KeyP') actions.togglePause();
     if (e.code === 'KeyE') actions.interact();
     if (e.code === 'Space' && session.curr.bow) {

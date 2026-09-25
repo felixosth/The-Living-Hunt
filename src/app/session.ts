@@ -3,6 +3,7 @@
  * advances the simulation once per real-time tick, and keeps the previous and
  * current snapshots for interpolated rendering.
  */
+import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
 import type { Command } from '../sim/commands';
 import { makeSnapshot, type Snapshot } from '../sim/snapshot';
 import type { WorldState } from '../sim/state';
@@ -11,7 +12,7 @@ import { type SimEvent, step } from '../sim/world';
 /** Real-time length of one simulation tick (10 Hz). */
 export const TICK_MS = 100;
 /** Game seconds per tick at 1× (a game minute per real second). */
-export const GAME_SECONDS_PER_TICK = 6;
+export const GAME_SECONDS_PER_TICK = (GAME_SECONDS_PER_REAL_SECOND * TICK_MS) / 1000;
 /** Longest single step; faster time scales are split into several steps. */
 export const MAX_STEP_SECONDS = 60;
 

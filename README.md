@@ -26,7 +26,7 @@ Add `?seed=123` to the URL to generate a different world.
 | <kbd>F</kbd> | Follow the trail of the sign you read, or stop following |
 | Right mouse (hold) on an animal | Draw the bow; the shot inset shows its side view |
 | Mouse, then left click | Aim on the side view, then loose the arrow |
-| <kbd>Space</kbd> (hold, while drawn) | Hold your breath for a steadier aim |
+| <kbd>Space</kbd> (hold, while drawn) | Hold your breath: five seconds of steadier aim, then you shake |
 | <kbd>E</kbd> | Field-dress, pick up, put down, or bring an animal into the cabin |
 | <kbd>J</kbd> | Journal: what you know |
 | <kbd>T</kbd> / <kbd>P</kbd> | Wait (10×, stops when something stirs) / pause |

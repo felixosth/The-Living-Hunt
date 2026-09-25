@@ -8,13 +8,27 @@
 import { anatomyFor, type Part, type PartId } from '../content/anatomy';
 import type { SpeciesId } from '../content/species';
 import { chance, nextFloat, type RngState } from '../core/rng';
+import { GAME_SECONDS_PER_REAL_SECOND as REAL } from '../core/time';
 import type { BowState, HitZone } from './state';
 
 /** You can't draw on anything further than this. */
 export const BOW_RANGE_M = 50;
-/** How long a held breath steadies you, in game seconds. */
-export const BREATH_HOLD_S = 18;
-const BREATH_RECOVER_S = 30;
+/*
+ * The shot happens in real time (drawing drops the game to normal speed), so
+ * its timings are written in real seconds and converted to game seconds.
+ */
+/** How long a held breath steadies you: 5 real seconds. */
+export const BREATH_HOLD_S = 5 * REAL;
+/** After letting a breath go, how long until you can hold it again: 4 real seconds. */
+const BREATH_RECOVER_S = 4 * REAL;
+/** Past a held breath, the shaking doubles your spread every 1.5 real seconds or so. */
+const SHAKE_S = 1.5 * REAL;
+/** Settling after the draw: the extra spread shrinks by two-thirds every 1.2 real seconds. */
+const SETTLE_S = 1.2 * REAL;
+/** Your arms tire after holding at full draw for 12 real seconds. */
+const TIRE_AFTER_S = 12 * REAL;
+/** Then the spread grows by this many radians per real second. */
+const TIRE_RATE = 0.002;
 
 /**
  * The animal's heading relative to the line of fire (radians): 0 = facing
@@ -178,7 +192,7 @@ export function castArrow(
 export function breathFactor(bow: BowState, now: number): number {
   if (bow.breathAt > 0) {
     const held = now - bow.breathAt;
-    return held <= BREATH_HOLD_S ? 0.5 : 0.5 + (held - BREATH_HOLD_S) / 8;
+    return held <= BREATH_HOLD_S ? 0.5 : 0.5 + (held - BREATH_HOLD_S) / SHAKE_S;
   }
   if (bow.breathOutAt > 0 && now - bow.breathOutAt < BREATH_RECOVER_S) return 1.3;
   return 1;
@@ -201,8 +215,8 @@ export function reticleSigma(
   targetSpeed: number,
 ): number {
   const held = now - bow.drawnAt;
-  const settle = 0.02 * Math.exp(-held / 12);
-  const fatigue = held > 90 ? 0.0005 * (held - 90) : 0;
+  const settle = 0.02 * Math.exp(-held / SETTLE_S);
+  const fatigue = held > TIRE_AFTER_S ? (TIRE_RATE * (held - TIRE_AFTER_S)) / REAL : 0;
   const angular = (0.0035 + settle + (moving ? 0.015 : 0) + fatigue) * breathFactor(bow, now);
   return Math.min(1.5, angular * distance + 0.02 * targetSpeed);
 }
