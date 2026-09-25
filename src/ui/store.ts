@@ -24,6 +24,8 @@ export interface GameActions {
   release(): void;
   lower(): void;
   interact(): void;
+  /** A soft bleat to stop a walking deer. */
+  bleat(): void;
 }
 
 export interface Perf {

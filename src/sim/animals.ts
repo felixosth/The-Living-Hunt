@@ -136,6 +136,7 @@ function makeAnimal(
     stride: 0,
     wound: null,
     carcass: null,
+    lookUntil: 0,
   };
 }
 
@@ -325,6 +326,8 @@ function sense(a: Animal, ctx: Ctx, cues: PlayerCues): void {
   }
   const before = a.awareness;
   a.awareness = clamp(a.awareness + gain - AWARENESS_DECAY * minutes, 0, 1);
+  // Listening for the call again, it stays on edge.
+  if (a.lookUntil > ctx.now) a.awareness = Math.max(a.awareness, CALLED_AWARENESS);
 
   if (a.wound) {
     // A wounded animal lying up gets up and moves on if it senses you coming.
@@ -403,6 +406,35 @@ function alertGroup(a: Animal, ctx: Ctx, level: number): void {
   }
 }
 
+/** How on edge a deer is while it looks for the call it heard. */
+const CALLED_AWARENESS = 0.4;
+/** How far a soft bleat carries to a deer in calm air, metres. */
+export const BLEAT_RANGE_M = 70;
+
+/**
+ * A deer hears a soft bleat from (x, y). The first time, it stops and looks
+ * up for a couple of seconds, body still. Calling again while it's still
+ * looking, or soon after, only makes it warier; enough of that and it's
+ * alarmed.
+ */
+export function hearBleat(a: Animal, ctx: Ctx, x: number, y: number): 'stopped' | 'warier' | null {
+  if (a.species !== 'roe' || a.wound || a.activity === 'dead' || a.activity === 'fleeing') {
+    return null;
+  }
+  const range = BLEAT_RANGE_M / (1 + ctx.state.weather.windSpeed / 8);
+  if (Math.hypot(a.x - x, a.y - y) > range) return null;
+  a.alarmX = x;
+  a.alarmY = y;
+  if (a.lookUntil > ctx.now - 2 * 60) {
+    a.awareness = Math.min(1, a.awareness + 0.25);
+    a.lookUntil = Math.max(a.lookUntil, ctx.now + 60);
+    return 'warier';
+  }
+  a.lookUntil = ctx.now + Math.round(nextRange(ctx.rng, 120, 240));
+  a.awareness = Math.max(a.awareness, CALLED_AWARENESS);
+  return 'stopped';
+}
+
 export function startFlight(a: Animal, ctx: Ctx, fromGroup = false): void {
   if (a.activity === 'fleeing' || a.activity === 'dead' || a.wound) return;
   const [lo, hi] = a.species === 'roe' ? [240, 480] : [150, 300];
@@ -445,6 +477,8 @@ function behave(a: Animal, ctx: Ctx): void {
       a.awareness = 0.45;
       travelTo(a, ctx, chooseRest(a, ctx));
     }
+  } else if (a.lookUntil > ctx.now) {
+    // Stopped by a call: it stands with its head up, looking, without turning its body.
   } else if (a.awareness >= SUSPICIOUS) {
     // Stand and stare at where the danger was.
     a.heading = lerpAngle(a.heading, Math.atan2(a.alarmY - a.y, a.alarmX - a.x), 0.5);

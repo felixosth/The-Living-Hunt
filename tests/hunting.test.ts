@@ -16,6 +16,7 @@ import {
   scatter,
   sway,
   swayInput,
+  travelDuringFlight,
 } from '../src/sim/shot';
 import { SignKind } from '../src/sim/signs';
 import type { Animal, HitZone, WorldState } from '../src/sim/state';
@@ -195,6 +196,54 @@ describe('where the arrow goes', () => {
     expect(stopped(45)).toBeGreaterThan(stopped(5));
   });
 
+  it('a moving animal carries on while the arrow flies, so the arrow strikes behind', () => {
+    expect(travelDuringFlight(0, 20, BROADSIDE)).toBeCloseTo(0);
+    // Walking at 4 m a (game) minute, 20 m away: a third of a second of flight, 1.3 m on.
+    expect(travelDuringFlight(4, 20, BROADSIDE)).toBeCloseTo(-4 * (20 / 60));
+    expect(Math.abs(travelDuringFlight(4, 40, BROADSIDE))).toBeGreaterThan(
+      Math.abs(travelDuringFlight(4, 20, BROADSIDE)),
+    );
+    // Walking straight away, it moves along the arrow's line: no shift on the side view.
+    expect(travelDuringFlight(4, 20, 0)).toBeCloseTo(0);
+  });
+
+  it('shoot at the lungs of a walking deer and you hit behind them; lead it and you hit them', () => {
+    const behind = setUp();
+    shoot(behind.world, behind.a, 'lungs', { walking: 4 });
+    expect(behind.a.wound?.zone ?? 'miss').not.toBe('lungs');
+    const led = setUp();
+    shoot(led.world, led.a, 'lungs', { walking: 4, lead: true });
+    expect(led.a.wound?.zone).toBe('lungs');
+  });
+
+  it('a soft bleat stops a walking deer, head up and body still; again, and it grows wary', () => {
+    const { world, a } = setUp();
+    Object.assign(a, { activity: 'travelling', goal: -1, awareness: 0 });
+    const heading = a.heading;
+    step(world, [{ type: 'bleat' }], 6);
+    expect(a.lookUntil).toBeGreaterThan(world.time);
+    for (let i = 0; i < 10; i++) step(world, [], 6);
+    expect(a.speed).toBe(0);
+    expect(a.heading).toBeCloseTo(heading);
+    expect(a.awareness).toBeGreaterThanOrEqual(0.3);
+    expect(a.activity).not.toBe('fleeing');
+    const before = a.awareness;
+    const events = step(world, [{ type: 'bleat' }], 6);
+    expect(events.some((e) => e.type === 'bleated' && e.warier === 1)).toBe(true);
+    expect(a.awareness).toBeGreaterThan(before);
+  });
+
+  it('a bleat carries only so far, and hares pay it no mind', () => {
+    const { world, a } = setUp();
+    a.x = world.player.x + 150;
+    step(world, [{ type: 'bleat' }], 6);
+    expect(a.lookUntil).toBe(0);
+    const hare = lone('hare');
+    Object.assign(hare.world.player, { x: hare.a.x - 10, y: hare.a.y });
+    step(hare.world, [{ type: 'bleat' }], 6);
+    expect(hare.a.lookUntil).toBe(0);
+  });
+
   it('every shot is practice for the bow arm', () => {
     const { world, a } = setUp();
     const before = world.player.knowledge.hands.bow;
@@ -223,7 +272,17 @@ function setUp(): { world: WorldState; a: Animal } {
   return { world, a };
 }
 
-function shoot(world: WorldState, a: Animal, organ: PartId): void {
+/**
+ * Draw, settle, hold your breath and release at an organ. With `walking`, the
+ * deer is moving at that speed (metres per game minute) as you release, and
+ * with `lead` you aim ahead of the organ to allow for it.
+ */
+function shoot(
+  world: WorldState,
+  a: Animal,
+  organ: PartId,
+  { walking = 0, lead = false }: { walking?: number; lead?: boolean } = {},
+): void {
   step(world, [{ type: 'draw', target: a.id }], 6);
   expect(world.player.bow).not.toBeNull();
   // Settle for three real seconds, hold your breath and let it calm you.
@@ -238,7 +297,9 @@ function shoot(world: WorldState, a: Animal, organ: PartId): void {
   const drift = sway(swayInput(bow, d, false, p.knowledge.hands.bow), world.time);
   const theta = relativeAngle(a.heading, p.x, p.y, a.x, a.y);
   const { u, v } = centreOf(organ, theta);
-  step(world, [{ type: 'aim', u: u - drift.u, v: v - drift.v }, { type: 'release' }], 6);
+  a.speed = walking;
+  const ahead = lead ? travelDuringFlight(walking, d, theta) : 0;
+  step(world, [{ type: 'aim', u: u - drift.u - ahead, v: v - drift.v }, { type: 'release' }], 6);
 }
 
 function runUntilDead(world: WorldState, a: Animal, steps: number): void {

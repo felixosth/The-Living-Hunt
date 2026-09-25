@@ -332,11 +332,27 @@ function phases(target: number, drawnAt: number): number[] {
 /**
  * Scatter you can't see or time: release, string and arrow. One standard
  * deviation of the landing point around the aim, in metres at the target.
- * A moving target adds to it, since it moves on while the arrow flies.
+ * A moving target adds a little: its gait isn't perfectly steady. (That it
+ * moves on while the arrow flies is `travelDuringFlight`.)
  */
 export function scatter(distance: number, targetSpeed: number, bowXp: number): number {
   const steady = 1 - 0.2 * practiceShare(bowXp);
-  return Math.min(1.5, 0.002 * distance * steady + 0.02 * targetSpeed);
+  return Math.min(1.5, 0.002 * distance * steady + 0.006 * targetSpeed);
+}
+
+/** How long an arrow takes to reach the target, in real seconds (game minutes at normal speed). */
+export function flightTime(distance: number): number {
+  return distance / ARROW_SPEED;
+}
+
+/**
+ * How far a moving animal carries its body on while the arrow flies, as a
+ * shift of the arrow's mark on the side view: it strikes further back than
+ * you aimed, by speed × flight time. Lead a moving animal, or stop it first.
+ * `speed` is metres per game minute.
+ */
+export function travelDuringFlight(speed: number, distance: number, theta: number): number {
+  return -speed * flightTime(distance) * Math.sin(theta);
 }
 
 /** Arrow speed from a hunting bow, metres per real second. */
@@ -371,7 +387,7 @@ export function jumpTheString(
   if (!chance(rng, 0.25 + 0.65 * edge)) return still;
   // The sound reaches it first; a tense animal reacts in a tenth of a second or so.
   const reaction = 0.18 - 0.08 * edge;
-  const moving = distance / ARROW_SPEED - distance / SOUND_SPEED - reaction;
+  const moving = flightTime(distance) - distance / SOUND_SPEED - reaction;
   if (moving <= 0) return still;
   const k = species === 'hare' ? 0.45 : 1;
   const drop = Math.min(0.25 * k, 1.0 * k * moving);

@@ -114,6 +114,23 @@ function Details({
   );
 }
 
+/** Which way the animal is moving, over its back: longer the faster it goes. */
+function MotionArrow({ dir, k, fast }: { dir: 1 | -1; k: number; fast: BowView['motion'] }) {
+  const len = (fast === 'slow' ? 0.12 : fast === 'walking' ? 0.25 : 0.4) * k;
+  const y = -1.12 * k;
+  const x0 = -dir * len * 0.5;
+  const x1 = dir * len * 0.5;
+  const head = 0.05 * k;
+  return (
+    <g stroke="#e8c16a" stroke-width={0.014 * k} fill="none" opacity={0.85}>
+      <line x1={x0} x2={x1} y1={y} y2={y} />
+      <polyline
+        points={`${x1 - dir * head},${y - head} ${x1},${y} ${x1 - dir * head},${y + head}`}
+      />
+    </g>
+  );
+}
+
 /** Re-render every animation frame while mounted. */
 function useEveryFrame(): void {
   const [, setFrame] = useState(0);
@@ -207,6 +224,9 @@ export function ShotInset() {
           species={bow.species}
           alarmed={bow.alertness !== 'unaware'}
         />
+        {bow.motion !== 'still' && Math.abs(Math.sin(bow.theta)) > 0.35 && (
+          <MotionArrow dir={bow.motionDir} k={k} fast={bow.motion} />
+        )}
         {rough && <Ellipse p={rough} fill="none" stroke="#e8c16a" dash="0.03 0.02" />}
         {organs.map((p, i) => (
           <Ellipse
@@ -248,8 +268,23 @@ export function ShotInset() {
         </span>
       </div>
       <div class="inset-info dim">
-        {bow.brush > 0.3 ? (
+        {bow.motion === 'running' ? (
+          <span class="warn">Running: no shot. Let it go.</span>
+        ) : bow.brush > 0.3 ? (
           <span class="warn">Branches in the way: the arrow may be turned.</span>
+        ) : bow.motion === 'walking' ? (
+          <span class="warn">
+            Walking: it moves on {bow.lead.toFixed(1)} m while the arrow flies. Lead it, or stop it
+            with a bleat (Q).
+          </span>
+        ) : bow.looking ? (
+          bow.distance > JUMP_RANGE_M ? (
+            <span class="warn">
+              Stopped by your call, but on edge: at this range it may jump the string.
+            </span>
+          ) : (
+            <span>Stopped by your call and looking: shoot before it moves on.</span>
+          )
         ) : bow.alertness !== 'unaware' && bow.distance > JUMP_RANGE_M ? (
           <span class="warn">
             It is on edge: at this range it may jump at the sound of the string.

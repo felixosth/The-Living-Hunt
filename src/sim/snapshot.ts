@@ -21,6 +21,7 @@ import {
   type SwayInput,
   scatter,
   swayInput,
+  travelDuringFlight,
 } from './shot';
 import { SIGN_KIND_NAMES, SignFlag, SignKind, type SignKindName, type SignStore } from './signs';
 import type { Activity, Animal, Gait, WorldState } from './state';
@@ -104,6 +105,14 @@ export interface BowView {
   /** How aware of you it is. */
   alertness: Alertness;
   awareness: number;
+  /** How it's moving: its body carries on while the arrow flies. */
+  motion: 'still' | 'slow' | 'walking' | 'running';
+  /** Which way it's moving on the side view: +1 to the right, -1 to the left. */
+  motionDir: 1 | -1;
+  /** How far it moves on while the arrow flies, metres along the side view. */
+  lead: number;
+  /** Stopped by your call, head up and looking. */
+  looking: boolean;
 }
 
 export interface Snapshot {
@@ -190,6 +199,10 @@ function bowView(state: WorldState, map: RegionMap): BowView | null {
     headDown: isHeadDown(a),
     alertness: alertnessOf(a),
     awareness: a.awareness,
+    motion: a.speed < 0.3 ? 'still' : a.speed < 2 ? 'slow' : a.speed < 7 ? 'walking' : 'running',
+    motionDir: Math.sin(theta) >= 0 ? 1 : -1,
+    lead: Math.abs(travelDuringFlight(a.speed, distance, theta)),
+    looking: a.lookUntil > now,
   };
 }
 

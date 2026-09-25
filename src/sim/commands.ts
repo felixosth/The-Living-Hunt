@@ -3,7 +3,7 @@
  * step(); commands are validated here and malformed ones are ignored.
  */
 import type { SimEvent } from './events';
-import { aim, breath, draw, interact, lower, release } from './hunting';
+import { aim, bleat, breath, draw, interact, lower, release } from './hunting';
 import { getRegionMap, isWalkable } from './region';
 import { GAITS, type Gait, type WorldState } from './state';
 import { follow, inspect } from './tracking';
@@ -25,6 +25,8 @@ export type Command =
    */
   | { type: 'release'; lead?: number }
   | { type: 'lower' }
+  /** A soft bleat, to stop a walking deer for a moment. */
+  | { type: 'bleat' }
   /** The context action: dress, pick up, put down, bring home. */
   | { type: 'interact' }
   /** Developer tool: move the player instantly (god view). */
@@ -61,6 +63,9 @@ export function applyCommand(state: WorldState, command: Command, events: SimEve
       return;
     case 'lower':
       lower(state);
+      return;
+    case 'bleat':
+      bleat(state, getRegionMap(state.seed, state.regionId), events);
       return;
     case 'interact':
       interact(state, getRegionMap(state.seed, state.regionId), events);

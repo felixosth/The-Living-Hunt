@@ -53,6 +53,8 @@ export type SimEvent =
   | { type: 'dropped'; species: SpeciesId }
   | { type: 'tooHeavy'; weightKg: number }
   | { type: 'delivered'; summary: HuntSummary }
-  | { type: 'trailFound' };
+  | { type: 'trailFound' }
+  /** You bleated: how many deer stopped to look, and how many grew warier. */
+  | { type: 'bleated'; stopped: number; warier: number };
 
 export type SimEventType = SimEvent['type'];

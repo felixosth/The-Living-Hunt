@@ -10,7 +10,7 @@ import { SPECIES } from '../content/species';
 import { clamp } from '../core/math';
 import { chance, nextRange } from '../core/rng';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
-import { animalContext, applyHit, SUSPICIOUS } from './animals';
+import { animalContext, applyHit, hearBleat, SUSPICIOUS } from './animals';
 import type { SimEvent } from './events';
 import { learn, lesson } from './knowledge';
 import { sightlineObstruction } from './perception';
@@ -27,6 +27,7 @@ import {
   scatter,
   sway,
   swayInput,
+  travelDuringFlight,
 } from './shot';
 import { addSign, removeSign, SIGN_LIFETIME_H, SignKind } from './signs';
 import type { Animal, HuntRecord, HuntSummary, PlayerState, WorldState } from './state';
@@ -122,6 +123,20 @@ export function breath(state: WorldState, hold: boolean): void {
   }
 }
 
+/** A soft bleat: nearby roe deer stop and look up for a moment. */
+export function bleat(state: WorldState, map: RegionMap, events: SimEvent[]): void {
+  const p = state.player;
+  const ctx = animalContext(state, map, events);
+  let stopped = 0;
+  let warier = 0;
+  for (const a of state.animals) {
+    const heard = hearBleat(a, ctx, p.x, p.y);
+    if (heard === 'stopped') stopped++;
+    else if (heard === 'warier') warier++;
+  }
+  events.push({ type: 'bleated', stopped, warier });
+}
+
 export function lower(state: WorldState): void {
   state.player.bow = null;
 }
@@ -144,7 +159,9 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
   const sigma = scatter(d, a.speed, p.knowledge.hands.bow);
   // An animal on edge may jump the string: where you aimed is no longer where the body is.
   const jump = jumpTheString(a.species, theta, d, a.awareness, rng);
-  const u = bow.aimU + drift.u + gaussian(rng) * sigma + jump.du;
+  // It walks on while the arrow flies: the arrow strikes behind where you aimed.
+  const walkedOn = travelDuringFlight(a.speed, d, theta);
+  const u = bow.aimU + drift.u + gaussian(rng) * sigma + jump.du + walkedOn;
   const v = bow.aimV + drift.v + gaussian(rng) * sigma + jump.dv;
   // A flinch of a few centimetres goes unnoticed; a real jump is worth telling.
   const ducked = Math.hypot(jump.du, jump.dv) > 0.1;

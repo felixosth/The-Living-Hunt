@@ -27,6 +27,7 @@ Add `?seed=123` to the URL to generate a different world.
 | Right mouse (hold) on an animal | Draw the bow; the shot inset shows its side view |
 | Mouse, then left click | Aim on the side view; the crosshair drifts, so loose the arrow as it crosses the vitals |
 | <kbd>Space</kbd> (hold, while drawn) | Hold your breath: five seconds of steadier aim, then you shake |
+| <kbd>Q</kbd> | A soft bleat: a walking roe deer stops and looks up for a couple of seconds (it's on edge while it does) |
 | <kbd>E</kbd> | Field-dress, pick up, put down, or bring an animal into the cabin |
 | <kbd>J</kbd> | Journal: what you know, and how steady your bow arm is |
 | <kbd>T</kbd> / <kbd>P</kbd> | Wait (10×, stops when something stirs) / pause |
@@ -36,7 +37,7 @@ Add `?seed=123` to the URL to generate a different world.
 
 At 1× speed a game minute passes every real second, so a full day lasts about 24 minutes.
 
-**How to hunt.** Faint streaks show the wind, and your scent drifts the same way: an animal downwind of you will smell you and run, so come at it with the wind in your face. Walking is heard and seen; sneaking on moss and trails is not. Deer bed in thickets by day and feed on the meadows at dawn and dusk; their prints are clearest in the mud at the fords. Sounds show as arcs around you pointing roughly where they came from, and animals you can see beyond the edge of the screen get a marker at the edge. Read signs to learn which way an animal went and how long ago, follow its trail, and take a broadside shot at the lungs from close, at an animal that doesn't know you're there: the further away, the wider your arrows scatter, and a deer on edge can jump at the sound of the string before the arrow arrives. Then read the blood before you follow: a lung-shot deer goes down quickly, a gut-shot one will run far if you push it. Carry it back to the cabin for a summary of the hunt.
+**How to hunt.** Faint streaks show the wind, and your scent drifts the same way: an animal downwind of you will smell you and run, so come at it with the wind in your face. Walking is heard and seen; sneaking on moss and trails is not. Deer bed in thickets by day and feed on the meadows at dawn and dusk; their prints are clearest in the mud at the fords. Sounds show as arcs around you pointing roughly where they came from, and animals you can see beyond the edge of the screen get a marker at the edge. Read signs to learn which way an animal went and how long ago, follow its trail, and take a broadside shot at the lungs from close, at an animal that doesn't know you're there: the further away, the wider your arrows scatter, and a deer on edge can jump at the sound of the string before the arrow arrives. A moving deer walks on while the arrow flies, so lead it, or stop it first with a soft bleat. Then read the blood before you follow: a lung-shot deer goes down quickly, a gut-shot one will run far if you push it. Carry it back to the cabin for a summary of the hunt.
 
 ## Development
 

@@ -103,6 +103,11 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
       player: { ...player, follow: follow ? { ...follow, lastId: 0 } : null },
     };
   },
+  /** Deer can be stopped with a call. */
+  7: (old) => ({
+    ...old,
+    animals: (old.animals as Record<string, unknown>[]).map((a) => ({ ...a, lookUntil: 0 })),
+  }),
 };
 
 export function migrateState(

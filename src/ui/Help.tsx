@@ -10,6 +10,7 @@ const CONTROLS: [string, string][] = [
   ['Right mouse (hold)', 'Draw the bow on the animal under the cursor'],
   ['Mouse / left click', 'Aim on the side view / loose the arrow'],
   ['Space (hold)', 'Hold your breath: steady for a few seconds'],
+  ['Q', 'A soft bleat: a walking roe deer stops and looks up for a moment'],
   ['E', 'Field-dress, pick up, put down, bring home'],
   ['J', 'Journal: what you know'],
   ['T', 'Wait (10×); stops when something stirs'],

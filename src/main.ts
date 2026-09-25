@@ -148,6 +148,7 @@ async function boot(): Promise<void> {
       input.resync();
     },
     interact: () => session.enqueue({ type: 'interact' }),
+    bleat: () => session.enqueue({ type: 'bleat' }),
   };
 
   let pendingAim: { u: number; v: number } | null = null;
@@ -175,6 +176,7 @@ async function boot(): Promise<void> {
       actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
     if (e.code === 'KeyP') actions.togglePause();
     if (e.code === 'KeyE') actions.interact();
+    if (e.code === 'KeyQ') actions.bleat();
     if (e.code === 'Space' && session.curr.bow) {
       e.preventDefault();
       actions.breath(true);
@@ -330,6 +332,15 @@ async function boot(): Promise<void> {
         return;
       case 'trailFound':
         addNotice('You pick up the trail again.');
+        return;
+      case 'bleated':
+        addNotice(
+          event.warier > 0
+            ? 'Another bleat. It is growing suspicious of that sound.'
+            : event.stopped > 0
+              ? 'A soft bleat. The roe deer stops and lifts its head.'
+              : 'A soft bleat. Nothing answers.',
+        );
         return;
       case 'shot':
         if (event.ducked) addNotice('It jumped at the sound of the string!');
