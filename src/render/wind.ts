@@ -18,15 +18,36 @@ const GUST_WIDTH_M = 26;
 const GUST_DEPTH_M = 9;
 /** Nested ellipses per gust: more make a softer edge. */
 const LAYERS = 6;
+/** How quickly the drawn wind follows a change in the weather, real seconds. */
+const EASE_S = 4;
 
 interface Gust {
   /** Centre, metres. */
   x: number;
   y: number;
+  /** The way it travels and how fast (m/s): kept for its whole life. */
+  angle: number;
+  speed: number;
   age: number;
   life: number;
   /** 0..1 */
   strength: number;
+}
+
+/**
+ * Ease a drawn wind towards the weather's, so a change of wind on the hour
+ * swings round over a few seconds instead of in one frame.
+ */
+export function easeWind(
+  current: { angle: number; speed: number } | null,
+  angle: number,
+  speed: number,
+  dt: number,
+): { angle: number; speed: number } {
+  if (!current) return { angle, speed };
+  const k = 1 - Math.exp(-dt / EASE_S);
+  const turn = Math.atan2(Math.sin(angle - current.angle), Math.cos(angle - current.angle));
+  return { angle: current.angle + turn * k, speed: current.speed + (speed - current.speed) * k };
 }
 
 export class WindField {
@@ -35,6 +56,7 @@ export class WindField {
   private lastFrame = 0;
   private lastTick = -1;
   private tickSeenAt = 0;
+  private eased: { angle: number; speed: number } | null = null;
   private angle = 0;
   private wind = 0;
   /** Time in real seconds, for the steady flutter. */
@@ -54,28 +76,30 @@ export class WindField {
       dt = 0;
     }
     this.clock += dt;
-    this.angle = s.scent.angle;
-    this.wind = s.wind.speed;
+    this.eased = easeWind(this.eased, s.scent.angle, s.wind.speed, dt);
+    this.angle = this.eased.angle;
+    this.wind = this.eased.speed;
 
+    // Gusts never pop in or out: new ones fade in from nothing, and when the
+    // wind drops the spare ones are left to fade away.
     const want = this.wind < CALM_WIND ? 0 : Math.round(Math.min(16, 3 + 1.6 * this.wind));
-    while (this.gusts.length > want) this.gusts.pop();
-    while (this.gusts.length < want) this.gusts.push(this.spawn(view, true));
-    const v = gustSpeed(this.wind);
-    const cos = Math.cos(this.angle);
-    const sin = Math.sin(this.angle);
-    for (let i = 0; i < this.gusts.length; i++) {
-      const gust = this.gusts[i] as Gust;
+    while (this.gusts.length < want) this.gusts.push(this.spawn(view, false));
+    let alive = 0;
+    for (const gust of this.gusts) {
       gust.age += dt;
-      gust.x += cos * v * dt;
-      gust.y += sin * v * dt;
+      gust.x += Math.cos(gust.angle) * gust.speed * dt;
+      gust.y += Math.sin(gust.angle) * gust.speed * dt;
       const pad = GUST_WIDTH_M;
       const outside =
         gust.x < view.x0 - pad ||
         gust.x > view.x1 + pad ||
         gust.y < view.y0 - pad ||
         gust.y > view.y1 + pad;
-      if (gust.age >= gust.life || outside) this.gusts[i] = this.spawn(view, false);
+      const done = gust.age >= gust.life || outside;
+      if (!done) this.gusts[alive++] = gust;
+      else if (alive < want) this.gusts[alive++] = this.spawn(view, true);
     }
+    this.gusts.length = alive;
     this.draw(s.weather.snowCm > 1);
   }
 
@@ -84,17 +108,19 @@ export class WindField {
    * the wind, a flutter, and more under a passing gust.
    */
   lean(x: number, y: number, phase: number): { dx: number; dy: number } {
-    if (this.wind < CALM_WIND) return { dx: 0, dy: 0 };
     const steady = Math.min(1, this.wind / 10);
     let gust = 0;
     const cos = Math.cos(this.angle);
     const sin = Math.sin(this.angle);
     for (const g of this.gusts) {
-      // Distance in the gust's own frame: along the wind and across it.
+      // Distance in the gust's own frame: along its way and across it.
       const rx = x - g.x;
       const ry = y - g.y;
-      const along = (rx * cos + ry * sin) / GUST_DEPTH_M;
-      const across = (-rx * sin + ry * cos) / GUST_WIDTH_M;
+      if (rx * rx + ry * ry > GUST_WIDTH_M * GUST_WIDTH_M) continue;
+      const gc = Math.cos(g.angle);
+      const gs = Math.sin(g.angle);
+      const along = (rx * gc + ry * gs) / GUST_DEPTH_M;
+      const across = (-rx * gs + ry * gc) / GUST_WIDTH_M;
       const d2 = along * along + across * across;
       if (d2 < 1) gust = Math.max(gust, (1 - d2) * g.strength * envelope(g));
     }
@@ -105,14 +131,14 @@ export class WindField {
     return { dx: cos * push - sin * side, dy: sin * push + cos * side };
   }
 
-  private spawn(view: ViewRect, anyAge: boolean): Gust {
+  /** A new gust, starting faint. `upwind` places it back along the wind, to drift into view. */
+  private spawn(view: ViewRect, upwind: boolean): Gust {
     const life = 3 + Math.random() * 4;
-    // New gusts come in from the upwind side of the view.
     const w = view.x1 - view.x0;
     const h = view.y1 - view.y0;
     let x = view.x0 + Math.random() * w;
     let y = view.y0 + Math.random() * h;
-    if (!anyAge) {
+    if (upwind) {
       const back = 0.5 * Math.random() * Math.max(w, h);
       x -= Math.cos(this.angle) * back;
       y -= Math.sin(this.angle) * back;
@@ -120,7 +146,9 @@ export class WindField {
     return {
       x,
       y,
-      age: anyAge ? Math.random() * life : 0,
+      angle: this.angle,
+      speed: gustSpeed(this.wind),
+      age: 0,
       life,
       strength: 0.5 + 0.5 * Math.random(),
     };
@@ -131,14 +159,14 @@ export class WindField {
     const g = this.g;
     g.clear();
     if (this.gusts.length === 0) return;
-    const cos = Math.cos(this.angle);
-    const sin = Math.sin(this.angle);
     // Over grass a gust lightens the ground; over snow it shows as a cold shade.
     const color = snowy ? 0x7d8fa3 : 0xffffff;
-    const base = (snowy ? 0.06 : 0.07) * Math.min(1, this.wind / 6);
+    const base = (snowy ? 0.06 : 0.07) * Math.min(1, Math.max(this.wind, CALM_WIND) / 6);
     for (const gust of this.gusts) {
       const a = base * gust.strength * envelope(gust);
       if (a < 0.004) continue;
+      const cos = Math.cos(gust.angle);
+      const sin = Math.sin(gust.angle);
       for (let k = 1; k <= LAYERS; k++) {
         // Nested ellipses make a soft edge.
         const w = (GUST_WIDTH_M * k) / LAYERS;

@@ -10,6 +10,7 @@
 import { type Container, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/snapshot';
 import { COLORS } from './palette';
+import { easeWind } from './wind';
 
 const PX = 16; // PX_PER_M
 /** Below this wind speed (m/s) nothing streaks. */
@@ -68,6 +69,8 @@ export class AirLayer {
   private nextBreath = 0;
   private nextSmoke = 0;
   private chimney: { x: number; y: number } | null = null;
+  /** The drawn wind, easing after the weather's. */
+  private eased: { angle: number; speed: number } | null = null;
   private lastFrame = 0;
   private lastTick = -1;
   private tickSeenAt = 0;
@@ -93,8 +96,8 @@ export class AirLayer {
     }
 
     // The way the wind blows, which is the way your scent drifts.
-    const { angle } = s.scent;
-    const wind = s.wind.speed;
+    this.eased = easeWind(this.eased, s.scent.angle, s.wind.speed, dt);
+    const { angle, speed: wind } = this.eased;
     const { precip, precipType, temp } = s.weather;
     const falling = precipType === 'none' ? 0 : precip;
     // Rain and snow show the wind well enough on their own.
