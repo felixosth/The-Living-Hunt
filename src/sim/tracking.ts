@@ -1,6 +1,7 @@
 /**
- * The player's side of signs: noticing obvious ones in passing, scanning for
- * subtle ones, reading them, following a trail, and learning by confirmation.
+ * The player's side of signs: noticing obvious ones in passing, finding subtle
+ * ones by crouching and looking, reading them, following a trail, and learning
+ * by confirmation.
  */
 import { chance, type RngState } from '../core/rng';
 import type { SimEvent } from './events';
@@ -20,18 +21,17 @@ import {
 } from './signs';
 import type { PlayerState, WorldState } from './state';
 
-/** How long a scan takes, in game seconds. */
-export const SCAN_SECONDS = 30;
-export const SCAN_RADIUS_M = 12;
 /** How close you must be to read a sign. */
 export const INSPECT_RANGE_M = 6;
 /** How far ahead the next signs of a followed trail can show up. */
-export const FOLLOW_RANGE_M = 25;
+export const FOLLOW_RANGE_M = 12;
+/** Wander this far from the last sign found and you've lost the trail. */
+const LOST_RANGE_M = 20;
 /** Readings are confirmed by seeing the animal within this long of reading its sign. */
 const CONFIRM_WINDOW = 12 * 3600;
 
-/** How easy each kind of sign is to spot when scanning. */
-const SCAN_EASE: Record<number, number> = {
+/** How easy each kind of sign is to spot. */
+const EASE: Record<number, number> = {
   [SignKind.Print]: 0.9,
   [SignKind.Pellets]: 0.8,
   [SignKind.Bed]: 0.95,
@@ -40,42 +40,61 @@ const SCAN_EASE: Record<number, number> = {
   [SignKind.Arrow]: 1,
 };
 
-export function startScan(player: PlayerState, now: number): void {
-  if (player.busy) return;
-  player.busy = 'scan';
-  player.busyUntil = now + SCAN_SECONDS;
+export type SearchPosture = 'still' | 'creeping' | 'walking' | 'running';
+
+/** How closely you are looking at the ground: crouched and still is best. */
+export function searchPosture(player: PlayerState): SearchPosture {
+  const moving = player.moveX !== 0 || player.moveY !== 0;
+  if (player.gait === 'run' && moving) return 'running';
+  if (player.gait === 'sneak') return moving ? 'creeping' : 'still';
+  return moving ? 'walking' : 'still';
 }
 
-/** Search the ground around the player; each sign is found with a chance. */
-function completeScan(state: WorldState, light: number, events: SimEvent[]): void {
+/** Search radius (m) and a rate multiplier for each posture. */
+const SEARCH: Record<SearchPosture, { radius: number; rate: number }> = {
+  still: { radius: 10, rate: 1 },
+  creeping: { radius: 7, rate: 0.5 },
+  walking: { radius: 4, rate: 0.15 },
+  running: { radius: 0, rate: 0 },
+};
+
+/**
+ * Looking at the ground: every step, each unfound sign nearby may catch your
+ * eye. Fresh, clear signs stand out; faded ones hardly at all. Crouching
+ * (sneak) and keeping still is how you really read a patch of ground.
+ */
+function searchGround(state: WorldState, dt: number, light: number, events: SimEvent[]): void {
   const { player, signs } = state;
+  const posture = searchPosture(player);
+  const standingStill = posture === 'still' && player.gait !== 'sneak';
+  const { radius, rate } = SEARCH[posture];
+  if (rate === 0) return;
+  const r = standingStill ? radius * 0.6 : radius;
+  const k = (standingStill ? 0.5 : 1) * rate * (0.35 + 0.65 * light) * (dt / 60);
   const rng = state.rng.signs;
-  const eyes = 0.35 + 0.65 * light;
-  let found = 0;
+  const { x: xs, y: ys, flags, kind: kinds, integrity } = signs;
   for (let i = 0; i < signs.count; i++) {
-    if ((signs.flags[i] as number) & SignFlag.Noticed) continue;
-    const d = Math.hypot((signs.x[i] as number) - player.x, (signs.y[i] as number) - player.y);
-    if (d > SCAN_RADIUS_M) continue;
-    const kind = signs.kind[i] as number;
+    const dx = (xs[i] as number) - player.x;
+    if (dx > r || dx < -r) continue;
+    const dy = (ys[i] as number) - player.y;
+    if (dy > r || dy < -r) continue;
+    if ((flags[i] as number) & SignFlag.Noticed) continue;
+    const d = Math.hypot(dx, dy);
+    if (d > r) continue;
+    const kind = kinds[i] as number;
     const literacy = level(player.knowledge.signs[SIGN_KIND_NAMES[kind] as 'print']);
-    const p =
-      (signs.integrity[i] as number) *
-      (SCAN_EASE[kind] ?? 0.8) *
-      eyes *
-      (0.55 + 0.12 * literacy) *
-      (1 - (0.5 * d) / SCAN_RADIUS_M);
-    if (chance(rng, Math.min(1, p))) {
-      setFlag(signs, i, SignFlag.Noticed);
-      if (kind !== SignKind.Arrow) noteSignFound(player, signs.animal[i] as number, state.time);
-      found++;
-      // A scan can pick up a trail you're following further along.
-      const f = player.follow;
-      if (f && signs.animal[i] === f.animal && (signs.t[i] as number) > f.lastT) {
-        advanceFollow(player, signs, i, state.time, events);
-      }
+    const clear = (integrity[i] as number) ** 2;
+    // Chance per game minute of spotting it, turned into a chance for this step.
+    const perMinute =
+      0.8 * clear * (EASE[kind] ?? 0.8) * (0.55 + 0.12 * literacy) * (1 - (0.6 * d) / r);
+    if (!chance(rng, 1 - Math.exp(-perMinute * k))) continue;
+    setFlag(signs, i, SignFlag.Noticed);
+    if (kind !== SignKind.Arrow) noteSignFound(player, signs.animal[i] as number, state.time);
+    const f = player.follow;
+    if (f && signs.animal[i] === f.animal && (signs.t[i] as number) > f.lastT) {
+      advanceFollow(player, signs, i, state.time, events);
     }
   }
-  events.push({ type: 'scanned', found });
 }
 
 /** Read a sign: returns an event with the reading, and teaches a little. */
@@ -180,8 +199,8 @@ function updateFollow(
         player.knowledge.signs[SIGN_KIND_NAMES[signs.kind[i] as number] as 'print'],
       );
       const p =
-        (signs.integrity[i] as number) *
-        (0.45 + 0.13 * literacy) *
+        (0.3 + 0.7 * (signs.integrity[i] as number)) *
+        (0.6 + 0.1 * literacy) *
         (0.4 + 0.6 * light) *
         pace *
         Math.min(1, dt / 6);
@@ -193,7 +212,7 @@ function updateFollow(
     }
     if (!advanced) break;
   }
-  if (!f.lost && Math.hypot(f.x - player.x, f.y - player.y) > FOLLOW_RANGE_M) {
+  if (!f.lost && Math.hypot(f.x - player.x, f.y - player.y) > LOST_RANGE_M) {
     f.lost = true;
     events.push({ type: 'trailLost' });
   }
@@ -238,11 +257,8 @@ export function updateTracking(
   events: SimEvent[],
 ): void {
   const { player } = state;
-  if (player.busy === 'scan' && state.time + dt >= player.busyUntil) {
-    player.busy = null;
-    completeScan(state, light, events);
-  }
   noticeObvious(state);
+  searchGround(state, dt, light, events);
   updateFollow(player, state.signs, state.rng.signs, dt, light, state.time, events);
 }
 

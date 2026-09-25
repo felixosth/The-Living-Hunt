@@ -120,7 +120,7 @@ export function terrainDef(id: number): TerrainDef {
 export const TRAIL = {
   speed: 1.1,
   noise: 0.65,
-  softness: 0.6,
+  softness: 0.45,
   /** Multiplier on animal path cost, so animals prefer trails. */
   navCost: 0.5,
 } as const;

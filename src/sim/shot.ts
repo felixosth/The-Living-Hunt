@@ -5,7 +5,7 @@
  * View coordinates are metres on a vertical plane through the animal, square
  * to the line of fire: u to the right as you look, v up from the ground.
  */
-import { ANATOMY, type Part, type PartId } from '../content/anatomy';
+import { anatomyFor, type Part, type PartId } from '../content/anatomy';
 import type { SpeciesId } from '../content/species';
 import { chance, nextFloat, type RngState } from '../core/rng';
 import type { BowState, HitZone } from './state';
@@ -73,8 +73,8 @@ export function project(part: Part, theta: number): Projected {
   };
 }
 
-export function projectAnatomy(species: SpeciesId, theta: number): Projected[] {
-  return ANATOMY[species].map((p) => project(p, theta));
+export function projectAnatomy(species: SpeciesId, theta: number, headDown = false): Projected[] {
+  return anatomyFor(species, headDown).map((p) => project(p, theta));
 }
 
 /** Entry and exit distances of the arrow's path through a part, or null. */
@@ -121,8 +121,9 @@ export function castArrow(
   u: number,
   v: number,
   rng: RngState,
+  headDown = false,
 ): ShotResult {
-  const parts = ANATOMY[species];
+  const parts = anatomyFor(species, headDown);
   const hits = parts
     .map((part) => ({ part, t: pierce(part, theta, u, v) }))
     .filter((h): h is { part: Part; t: [number, number] } => h.t !== null && h.t[1] > 0)

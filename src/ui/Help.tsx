@@ -3,8 +3,8 @@ import { helpOpen } from './store';
 const CONTROLS: [string, string][] = [
   ['W A S D / arrows', 'Move'],
   ['Shift', 'Run (loud)'],
-  ['C', 'Toggle sneaking (quiet, slow, low)'],
-  ['Q', 'Scan the ground around you for signs'],
+  ['C', 'Toggle sneaking (quiet, slow, low; you notice more)'],
+  ['C, then keep still', 'Crouch and study the ground: subtle signs appear around you'],
   ['Click a sign', 'Read it (you must be close)'],
   ['F', 'Follow the trail of the sign you read / stop'],
   ['Right mouse (hold)', 'Draw the bow on the animal under the cursor'],

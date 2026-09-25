@@ -20,7 +20,16 @@ import {
 import { type SimEvent, SOUND_RANGE_M, type SoundKind } from './events';
 import { cellCentre, cellOf, downhill, isCellOpen } from './nav';
 import { PERCEPTION_RANGE_M, type PlayerCues, perceivePlayer, playerCanSee } from './perception';
-import { coverAt, isWalkable, type Poi, type PoiKind, poiField, type RegionMap } from './region';
+import {
+  coverAt,
+  isWalkable,
+  type Poi,
+  type PoiKind,
+  poiField,
+  type RegionMap,
+  regionHeightM,
+  regionWidthM,
+} from './region';
 import { emitBed, emitBlood, emitFeedingSigns, emitPrints } from './signEmission';
 import { addSign, SIGN_LIFETIME_H, SignKind } from './signs';
 import type { Animal, AnimalHome, HitZone, PlayerState, WorldState, Wound } from './state';
@@ -667,12 +676,45 @@ function travel(a: Animal, ctx: Ctx, distance: number): number {
     const target =
       next < 0 || next === cell ? { x: a.spotX, y: a.spotY } : cellCentre(map.nav, next);
     const step = moveToward(a, map, target.x, target.y, Math.min(left, SUBSTEP_M));
-    if (step < 1e-6) break;
+    if (step < 1e-6) {
+      // Wedged against something (after a flight into rough ground): step back onto the grid.
+      unstick(a, map);
+      break;
+    }
     moved += step;
     left -= step;
     if (arrived(a, ctx)) break;
   }
   return moved;
+}
+
+/** Move to the centre of the nearest open navigation cell, at most a few metres away. */
+function unstick(a: Animal, map: RegionMap): void {
+  const { nav } = map;
+  const here = cellOf(nav, a.x, a.y);
+  let best = -1;
+  let bestD = Number.POSITIVE_INFINITY;
+  const cx = here % nav.cols;
+  const cy = Math.floor(here / nav.cols);
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const x = cx + dx;
+      const y = cy + dy;
+      if (x < 0 || y < 0 || x >= nav.cols || y >= nav.rows) continue;
+      const c = y * nav.cols + x;
+      if (c === here || !isCellOpen(nav, c)) continue;
+      const centre = cellCentre(nav, c);
+      const d = Math.hypot(centre.x - a.x, centre.y - a.y);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+  }
+  if (best < 0) return;
+  const centre = cellCentre(nav, best);
+  a.x = centre.x;
+  a.y = centre.y;
 }
 
 /** Amble between spots while feeding. */
@@ -686,14 +728,36 @@ function graze(a: Animal, ctx: Ctx): number {
 }
 
 const FLEE_DIRECTIONS = 16;
+/** Animals steer away from the region's edge when they are closer than this, in metres. */
+const EDGE_AVOID_M = 40;
+
+/**
+ * The direction to run: away from the danger, bent inwards near the region's
+ * edge so a fleeing animal runs along it, and past the danger if cornered.
+ */
+function fleeHeading(a: Animal, map: RegionMap): number {
+  let vx = a.x - a.alarmX;
+  let vy = a.y - a.alarmY;
+  const len = Math.hypot(vx, vy) || 1;
+  vx /= len;
+  vy /= len;
+  const w = regionWidthM(map);
+  const h = regionHeightM(map);
+  const push = (d: number) => (d < EDGE_AVOID_M ? 1.6 * (1 - d / EDGE_AVOID_M) : 0);
+  vx += push(a.x) - push(w - a.x);
+  vy += push(a.y) - push(h - a.y);
+  return Math.atan2(vy, vx);
+}
 
 /** Bound away from the danger, keeping momentum and preferring cover. */
 function flee(a: Animal, ctx: Ctx, distance: number): number {
   const { map } = ctx;
+  const w = regionWidthM(map);
+  const h = regionHeightM(map);
   let left = distance;
   let moved = 0;
   while (left > 1e-6) {
-    const away = Math.atan2(a.y - a.alarmY, a.x - a.alarmX);
+    const away = fleeHeading(a, map);
     let bestScore = Number.NEGATIVE_INFINITY;
     let best = away;
     for (let k = 0; k < FLEE_DIRECTIONS; k++) {
@@ -702,10 +766,14 @@ function flee(a: Animal, ctx: Ctx, distance: number): number {
       const ay = a.y + Math.sin(dir) * 3;
       if (!isWalkable(map, a.x + Math.cos(dir) * 1.5, a.y + Math.sin(dir) * 1.5)) continue;
       if (!isCellOpen(map.nav, cellOf(map.nav, ax, ay))) continue;
+      const fx = a.x + Math.cos(dir) * 10;
+      const fy = a.y + Math.sin(dir) * 10;
+      const edge = Math.min(fx, fy, w - fx, h - fy);
       const score =
         2 * Math.cos(dir - away) +
         0.8 * Math.cos(dir - a.heading) +
-        0.6 * coverAt(map, a.x + Math.cos(dir) * 8, a.y + Math.sin(dir) * 8);
+        0.6 * coverAt(map, a.x + Math.cos(dir) * 8, a.y + Math.sin(dir) * 8) -
+        (edge < 12 ? 2.5 * (1 - edge / 12) : 0);
       if (score > bestScore) {
         bestScore = score;
         best = dir;

@@ -76,6 +76,11 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
       },
     };
   },
+  /** Scanning became searching the ground; a save caught mid-scan just stops. */
+  4: (old) => {
+    const player = old.player as Record<string, unknown>;
+    return { ...old, player: { ...player, busy: player.busy === 'scan' ? null : player.busy } };
+  },
 };
 
 export function migrateState(

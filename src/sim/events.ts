@@ -17,7 +17,6 @@ export type SimEvent =
   | { type: 'seasonStarted'; time: GameTime; season: Season }
   | { type: 'sound'; kind: SoundKind; species: SpeciesId; x: number; y: number; time: GameTime }
   | { type: 'sighted'; animalId: number; species: SpeciesId; x: number; y: number; time: GameTime }
-  | { type: 'scanned'; found: number }
   | { type: 'inspected'; reading: Reading }
   | { type: 'learned'; area: KnowledgeArea; key: string; level: number }
   /** You saw the animal whose sign you had read: the reading is confirmed. */

@@ -85,13 +85,18 @@ function Prompt() {
 function TrackingStatus() {
   const s = snapshot.value;
   if (!s) return null;
-  const { scan, following } = s.tracking;
-  if (scan !== null) return <span class="status-track">Scanning…</span>;
-  if (!following) return null;
+  const { searching, following } = s.tracking;
+  if (!following) {
+    return searching === 'still' && s.player.gait === 'sneak' && !s.bow ? (
+      <span class="status-track" data-testid="searching">
+        Studying the ground…
+      </span>
+    ) : null;
+  }
   const who = following.species ? SPECIES[following.species].name : 'animal';
   return (
     <span class={`status-track${following.lost ? ' lost' : ''}`} data-testid="following">
-      {following.lost ? `Lost the ${who} trail: scan (Q)` : `Following a ${who}`}
+      {following.lost ? `Lost the ${who} trail: crouch and look` : `Following a ${who}`}
     </span>
   );
 }

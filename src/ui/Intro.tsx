@@ -20,8 +20,9 @@ export function Intro() {
         </q>
       </p>
       <p class="card-meta">
-        <kbd>Q</kbd> scan for signs · click a sign to read it · <kbd>F</kbd> follow · hold right
-        mouse on an animal to draw the bow · <kbd>H</kbd> all controls
+        <kbd>C</kbd> crouch and keep still to study the ground · click a sign to read it ·{' '}
+        <kbd>F</kbd> follow · hold right mouse on an animal to draw the bow · <kbd>H</kbd> all
+        controls
       </p>
       <p class="card-meta">Press any key to begin.</p>
     </div>

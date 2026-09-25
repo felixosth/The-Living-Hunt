@@ -21,8 +21,7 @@ Add `?seed=123` to the URL to generate a different world.
 |---|---|
 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrows | Move |
 | <kbd>Shift</kbd> | Run (fast and loud) |
-| <kbd>C</kbd> | Toggle sneaking (slow, quiet, low) |
-| <kbd>Q</kbd> | Scan the ground around you for signs |
+| <kbd>C</kbd> | Toggle sneaking (slow, quiet, low). Crouched and still, you study the ground and subtle signs appear around you |
 | Click a found sign | Read it (you have to be close) |
 | <kbd>F</kbd> | Follow the trail of the sign you read, or stop following |
 | Right mouse (hold) on an animal | Draw the bow; the shot inset shows its side view |
@@ -32,12 +31,12 @@ Add `?seed=123` to the URL to generate a different world.
 | <kbd>J</kbd> | Journal: what you know |
 | <kbd>T</kbd> / <kbd>P</kbd> | Wait (10×, stops when something stirs) / pause |
 | <kbd>H</kbd> | All controls |
-| Mouse wheel | Zoom |
+| Mouse wheel | Zoom. The camera also leans towards the mouse, so point where you want to look |
 | <kbd>`</kbd> | Debug panel: time scale, saves, new world, state hash, **god view** |
 
 At 1× speed a game minute passes every real second, so a full day lasts about 24 minutes.
 
-**How to hunt.** The wind arrow shows where your scent drifts: animals downwind of you will smell you and run. Walking is heard and seen; sneaking on moss and trails is not. Deer bed in thickets by day and feed on the meadows at dawn and dusk; their prints are clearest in the mud at the fords. Read signs to learn which way an animal went and how long ago, follow its trail, and take a broadside shot at the lungs from close. Then read the blood before you follow: a lung-shot deer goes down quickly, a gut-shot one will run far if you push it. Carry it back to the cabin for a summary of the hunt.
+**How to hunt.** The wind arrow shows where your scent drifts: animals downwind of you will smell you and run. Walking is heard and seen; sneaking on moss and trails is not. Deer bed in thickets by day and feed on the meadows at dawn and dusk; their prints are clearest in the mud at the fords. Sounds show as arcs around you pointing roughly where they came from, and animals you can see beyond the edge of the screen get a marker at the edge. Read signs to learn which way an animal went and how long ago, follow its trail, and take a broadside shot at the lungs from close. Then read the blood before you follow: a lung-shot deer goes down quickly, a gut-shot one will run far if you push it. Carry it back to the cabin for a summary of the hunt.
 
 ## Development
 

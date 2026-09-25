@@ -11,8 +11,10 @@ const PX = 16; // PX_PER_M
 /** Glyphs are drawn this much larger than life so they read at a normal zoom. */
 const G = 2;
 
-function drawGlyph(g: Graphics, s: SignView): void {
-  const alpha = 0.35 + 0.65 * Math.min(1, s.integrity);
+const FADE_IN_MS = 700;
+
+function drawGlyph(g: Graphics, s: SignView, visibility: number): void {
+  const alpha = (0.35 + 0.65 * Math.min(1, s.integrity)) * visibility;
   const ink = { color: COLORS.ink, alpha };
   const cos = Math.cos(s.heading);
   const sin = Math.sin(s.heading);
@@ -133,6 +135,11 @@ export class SignLayer {
   private hover = new Graphics();
   private all = new Graphics();
   private revision = -1;
+  /** When each found sign first appeared, so new ones fade in. */
+  private firstSeen = new Map<number, number>();
+  private fading = false;
+  private revisionsSeen = 0;
+  private following = false;
   private hoverId = 0;
   private allDrawnAt = 0;
 
@@ -143,16 +150,34 @@ export class SignLayer {
 
   clear(): void {
     this.revision = -1;
+    this.firstSeen.clear();
+    this.revisionsSeen = 0;
     this.glyphs.clear();
     this.all.clear();
     this.hover.clear();
   }
 
   update(s: Snapshot, zoom: number, now: number): void {
-    if (s.signsRevision !== this.revision) {
+    const following = s.tracking.following !== null;
+    if (s.signsRevision !== this.revision || this.fading || following !== this.following) {
       this.revision = s.signsRevision;
+      this.following = following;
+      this.fading = false;
       this.glyphs.clear();
-      for (const sign of s.signs) drawGlyph(this.glyphs, sign);
+      for (const sign of s.signs) {
+        let seenAt = this.firstSeen.get(sign.id);
+        if (seenAt === undefined) {
+          // Signs already found when the view opens don't fade in.
+          seenAt = this.revisionsSeen === 0 ? now - FADE_IN_MS : now;
+          this.firstSeen.set(sign.id, seenAt);
+        }
+        const fade = Math.min(1, (now - seenAt) / FADE_IN_MS);
+        if (fade < 1) this.fading = true;
+        // While following a trail, other animals' signs step back.
+        const dim = following && !sign.followed ? 0.35 : 1;
+        drawGlyph(this.glyphs, sign, fade * dim);
+      }
+      this.revisionsSeen++;
     }
     this.drawHover(s, zoom);
     // God view: every sign as a dot, redrawn at most twice a second.

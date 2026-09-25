@@ -47,9 +47,10 @@ test('boots, walks, saves and loads', async ({ page }) => {
   const start = await snap(page);
   await holdUntil(page, 'KeyD', async () => (await snap(page)).player.x > start.player.x + 1);
 
-  // Scanning the ground reports what it found.
-  await page.keyboard.press('KeyQ');
-  await expect(page.getByTestId('toast')).toContainText(/You find/);
+  // Crouching and keeping still means studying the ground.
+  await page.keyboard.press('KeyC');
+  await expect(page.getByTestId('searching')).toBeVisible();
+  await page.keyboard.press('KeyC');
   // The journal and help open and close.
   await page.keyboard.press('KeyJ');
   await expect(page.getByTestId('journal')).toContainText('roe deer');

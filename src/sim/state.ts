@@ -17,7 +17,7 @@ import type { SignStore } from './signs';
  * Version of the WorldState shape. Bump it whenever the shape changes, and add
  * a migration in src/persistence/migrations.ts.
  */
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export type Gait = 'sneak' | 'walk' | 'run';
 export const GAITS: readonly Gait[] = ['sneak', 'walk', 'run'];
@@ -33,7 +33,7 @@ export interface PlayerState {
   moveX: number;
   moveY: number;
   /** A timed action that holds the player in place, and when it ends. */
-  busy: 'scan' | 'dress' | null;
+  busy: 'dress' | null;
   /** The animal being dressed. */
   busyTarget: number;
   busyUntil: number;

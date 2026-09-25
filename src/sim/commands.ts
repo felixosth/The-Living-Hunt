@@ -6,12 +6,10 @@ import type { SimEvent } from './events';
 import { aim, breath, draw, interact, lower, release } from './hunting';
 import { getRegionMap, isWalkable } from './region';
 import { GAITS, type Gait, type WorldState } from './state';
-import { follow, inspect, startScan } from './tracking';
+import { follow, inspect } from './tracking';
 
 export type Command =
   | { type: 'move'; x: number; y: number; gait: Gait }
-  /** Crouch and search the ground nearby. */
-  | { type: 'scan' }
   /** Read a sign you've found. */
   | { type: 'inspect'; signId: number }
   /** Follow the trail of the animal that made a sign (0 stops following). */
@@ -39,9 +37,6 @@ export function applyCommand(state: WorldState, command: Command, events: SimEve
       state.player.gait = gait;
       return;
     }
-    case 'scan':
-      startScan(state.player, state.time);
-      return;
     case 'inspect':
       if (Number.isInteger(command.signId)) inspect(state, command.signId, events);
       return;

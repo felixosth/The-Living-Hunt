@@ -5,6 +5,7 @@ import { startLoop } from './app/loop';
 import { GameSession, TICK_MS } from './app/session';
 import { bodyCentre } from './content/anatomy';
 import { SPECIES } from './content/species';
+import { hash32 } from './core/hash';
 import { formatClock, formatDate } from './core/time';
 import { decodeSave, encodeSave } from './persistence/saveFile';
 import { downloadSaveFile, readFileBytes, readSlot, writeSlot } from './persistence/storage';
@@ -121,7 +122,6 @@ async function boot(): Promise<void> {
       showToast(`New world — seed ${seed}`);
     },
     stateHash: () => stateHash(session.state),
-    scan: () => session.enqueue({ type: 'scan' }),
     inspect: (signId) => session.enqueue({ type: 'inspect', signId }),
     follow: (signId) => session.enqueue({ type: 'follow', signId }),
     draw(target) {
@@ -168,7 +168,6 @@ async function boot(): Promise<void> {
     // T: wait (10×), again for normal speed. P: pause.
     if (e.code === 'KeyT') actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
     if (e.code === 'KeyP') actions.togglePause();
-    if (e.code === 'KeyQ') actions.scan();
     if (e.code === 'KeyE') actions.interact();
     if (e.code === 'Space' && session.curr.bow) {
       e.preventDefault();
@@ -265,6 +264,8 @@ async function boot(): Promise<void> {
   window.addEventListener('mouseup', (e) => {
     if (e.button === 2 && session.curr.bow) actions.lower();
   });
+  window.addEventListener('mousemove', (e) => renderer.setPointer({ x: e.clientX, y: e.clientY }));
+  document.addEventListener('mouseleave', () => renderer.setPointer(null));
   window.addEventListener('mousemove', (e) => {
     const bow = session.curr.bow;
     if (!bow) return;
@@ -297,15 +298,18 @@ async function boot(): Promise<void> {
     { passive: false },
   );
 
+  /** The direction a sound seems to come from: roughly right, never exact. */
+  function heardFrom(
+    event: Extract<SimEvent, { type: 'sound' }>,
+    p: { x: number; y: number },
+  ): number {
+    const blur =
+      ((hash32(Math.round(event.x), Math.round(event.y), event.time) % 1000) / 1000 - 0.5) * 0.5;
+    return Math.atan2(event.y - p.y, event.x - p.x) + blur;
+  }
+
   function describeTracking(event: SimEvent): void {
     switch (event.type) {
-      case 'scanned':
-        showToast(
-          event.found === 0
-            ? 'You find nothing new here.'
-            : `You find ${event.found} sign${event.found === 1 ? '' : 's'}.`,
-        );
-        return;
       case 'inspected':
         reading.value = event.reading;
         return;
@@ -316,7 +320,7 @@ async function boot(): Promise<void> {
         addNotice(`There it is: the ${SPECIES[event.species].name} whose sign you read.`);
         return;
       case 'trailLost':
-        addNotice('You have lost the trail. Scan (Q) to pick it up again.');
+        addNotice('You have lost the trail. Crouch (C), keep still and look around to pick it up.');
         return;
       case 'trailFound':
         addNotice('You pick up the trail again.');
@@ -375,6 +379,7 @@ async function boot(): Promise<void> {
       for (const event of events) {
         if (event.type === 'sound') {
           addNotice(describeSound(event, session.curr.player.x, session.curr.player.y));
+          renderer.addSound(event.kind, heardFrom(event, session.curr.player));
           stirred = true;
         } else if (event.type === 'sighted') {
           stirred = true;
@@ -416,6 +421,8 @@ async function boot(): Promise<void> {
       stateHash: () => stateHash(session.state),
       /** Developer tool: jump to a point in metres. */
       teleport: (x: number, y: number) => session.enqueue({ type: 'teleport', x, y }),
+      /** Developer tool: where a world point (metres) is on screen right now. */
+      toScreen: (x: number, y: number) => renderer.worldToScreen(x, y),
     },
   });
 }

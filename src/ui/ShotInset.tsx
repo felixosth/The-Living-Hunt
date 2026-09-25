@@ -54,13 +54,67 @@ const ANGLE_ADVICE: Record<string, string> = {
   'facing you': 'Facing you: a small target, easy to miss.',
 };
 
+/** Ears, eye and the white rump patch, which flares when the animal is alarmed. */
+function Details({
+  parts,
+  theta,
+  species,
+  alarmed,
+}: {
+  parts: Projected[];
+  theta: number;
+  species: string;
+  alarmed: boolean;
+}) {
+  const head = parts.find((p) => p.id === 'head');
+  const body = parts.find((p) => p.id === 'body');
+  if (!head || !body) return null;
+  const k = species === 'hare' ? 0.45 : 1;
+  const side = Math.sin(theta) >= 0 ? 1 : -1;
+  // Hares have long ears laid along the back; roe deer short upright ones.
+  const earLen = species === 'hare' ? 0.12 : 0.07 * k;
+  const rumpU = -0.48 * k * Math.sin(theta);
+  const rumpVisible = Math.cos(theta) > -0.2;
+  return (
+    <g>
+      {[-1, 1].map((e) => (
+        <ellipse
+          key={e}
+          cx={head.u - side * (0.02 + 0.03 * (e + 1)) * k}
+          cy={-(head.v + head.rv * 0.9 + earLen * 0.6)}
+          rx={0.025 * k + 0.01}
+          ry={earLen}
+          fill="#5c4331"
+          transform={`rotate(${-side * 20 * e} ${head.u} ${-(head.v + head.rv)})`}
+        />
+      ))}
+      <circle
+        cx={head.u + side * head.ru * 0.35}
+        cy={-(head.v + head.rv * 0.2)}
+        r={0.012 * k + 0.004}
+        fill="#140e0a"
+      />
+      {rumpVisible && (
+        <ellipse
+          cx={rumpU}
+          cy={-(body.v + 0.04 * k)}
+          rx={(alarmed ? 0.1 : 0.06) * k * Math.max(0.35, Math.abs(Math.cos(theta)) + 0.3)}
+          ry={(alarmed ? 0.12 : 0.08) * k}
+          fill="#f1ead8"
+          opacity={alarmed ? 0.95 : 0.6}
+        />
+      )}
+    </g>
+  );
+}
+
 /** The side view of your target at its angle to you, with the reticle. */
 export function ShotInset() {
   const s = snapshot.value;
   const bow = s?.bow;
   if (!s || !bow) return null;
   const k = bow.species === 'hare' ? 0.5 : 1;
-  const parts = projectAnatomy(bow.species, bow.theta);
+  const parts = projectAnatomy(bow.species, bow.theta, bow.headDown);
   // Far-side parts first, so the near side overlaps them.
   const byDepth = [...parts].sort((a, b) => b.depth - a.depth);
   const silhouette = byDepth.filter((p) => ['leg', 'body', 'neck', 'head'].includes(p.id));
@@ -95,6 +149,12 @@ export function ShotInset() {
         {silhouette.map((p, i) => (
           <Ellipse key={`s${i}`} p={p} fill={p.depth > 0.05 ? '#5c4331' : '#7d5c42'} />
         ))}
+        <Details
+          parts={parts}
+          theta={bow.theta}
+          species={bow.species}
+          alarmed={bow.alertness !== 'unaware'}
+        />
         {rough && <Ellipse p={rough} fill="none" stroke="#e8c16a" dash="0.03 0.02" />}
         {organs.map((p, i) => (
           <Ellipse
@@ -158,6 +218,20 @@ export function ShotInset() {
               : bow.breath === 'recovering'
                 ? 'Catching your breath'
                 : 'Space: hold breath'}
+        </span>
+      </div>
+      <div class="inset-info">
+        <span class={bow.alertness === 'unaware' ? 'calm' : 'warn'}>
+          {bow.alertness === 'unaware'
+            ? bow.headDown
+              ? 'Unaware, head down'
+              : 'Unaware'
+            : bow.alertness === 'suspicious'
+              ? 'Suspicious: it is watching'
+              : 'Alarmed!'}
+        </span>
+        <span class="inset-eye" title={`Awareness ${Math.round(bow.awareness * 100)} %`}>
+          <span style={{ width: `${Math.round(Math.min(1, bow.awareness) * 100)}%` }} />
         </span>
       </div>
       <div class="inset-info dim">

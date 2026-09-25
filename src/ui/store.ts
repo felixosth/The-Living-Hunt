@@ -14,7 +14,6 @@ export interface GameActions {
   importSave(file: File): Promise<void>;
   newWorld(seed: number): void;
   stateHash(): string;
-  scan(): void;
   inspect(signId: number): void;
   /** Follow the trail from a sign; 0 stops following. */
   follow(signId: number): void;

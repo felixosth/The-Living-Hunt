@@ -59,6 +59,25 @@ export const ANATOMY: Record<SpeciesId, Part[]> = {
   hare: scaled(ROE, 0.45),
 };
 
+/** Neck and head lowered to graze or drink: the moment to draw. */
+const ROE_HEAD_DOWN: Part[] = [
+  { id: 'neck', c: [0.6, 0, 0.52], r: [0.15, 0.07, 0.09] },
+  { id: 'head', c: [0.72, 0, 0.22], r: [0.1, 0.07, 0.08] },
+];
+
+const HEAD_DOWN: Record<SpeciesId, Part[]> = {
+  roe: ROE_HEAD_DOWN,
+  hare: scaled(ROE_HEAD_DOWN, 0.45),
+};
+
+/** The body in its current posture. */
+export function anatomyFor(species: SpeciesId, headDown: boolean): Part[] {
+  const parts = ANATOMY[species];
+  if (!headDown) return parts;
+  const lowered = HEAD_DOWN[species];
+  return parts.map((p) => lowered.find((q) => q.id === p.id) ?? p);
+}
+
 /** Organs whose outline knowledge reveals on the shot inset, from vital to less so. */
 export const VITALS: readonly PartId[] = ['heart', 'lungs', 'liver', 'gut'];
 

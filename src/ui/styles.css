@@ -400,6 +400,25 @@ kbd {
   font-size: 12px;
 }
 
+.calm {
+  color: var(--ink-dim);
+}
+
+.inset-eye {
+  width: 90px;
+  height: 8px;
+  align-self: center;
+  border-radius: 4px;
+  background: rgba(233, 224, 201, 0.12);
+  overflow: hidden;
+}
+
+.inset-eye span {
+  display: block;
+  height: 100%;
+  background: var(--danger);
+}
+
 .warn {
   color: var(--danger);
 }

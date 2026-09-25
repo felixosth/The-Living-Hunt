@@ -21,10 +21,11 @@ import {
 } from 'pixi.js';
 import { hash32 } from '../core/hash';
 import { clamp, lerp, lerpAngle } from '../core/math';
+import type { SoundKind } from '../sim/events';
 import type { RegionMap } from '../sim/region';
 import type { Snapshot } from '../sim/snapshot';
-import { SCAN_RADIUS_M } from '../sim/tracking';
 import { AnimalLayer } from './animals';
+import { ScreenCues } from './cues';
 import { COLORS, TERRAIN_RGB } from './palette';
 import { SignLayer } from './signs';
 
@@ -35,7 +36,9 @@ export const PX_PER_M = 16;
 const TEXELS_PER_TILE = 8;
 /** Trees are grouped in square chunks so off-screen ones can be culled. */
 const TREE_CHUNK_M = 32;
-const MIN_ZOOM = 0.35;
+const MIN_ZOOM = 0.3;
+/** How far the camera leans towards the mouse, as a share of the mouse's distance from centre. */
+const LOOK_AHEAD = 0.6;
 const MIN_ZOOM_GOD = 0.12;
 const MAX_ZOOM = 2.5;
 /** Colour multiplier for the world at full night: dark, cold blue. */
@@ -60,7 +63,6 @@ export class Renderer {
   private shadowLayer = new Container();
   private signLayer = new Container();
   private signs: SignLayer;
-  private scanRing = new Graphics();
   private agentLayer = new Container();
   private canopyLayer = new Container();
   private player = new Container();
@@ -75,6 +77,12 @@ export class Renderer {
   private chunkCols = 0;
   private chunkRows = 0;
   private faded = new Set<Sprite>();
+  private cues: ScreenCues;
+  /** Mouse position in screen pixels, for looking ahead. */
+  private pointer: { x: number; y: number } | null = null;
+  /** Camera offset from the player, in screen pixels, eased towards the look-ahead target. */
+  private look = { x: 0, y: 0 };
+  private lastFrame = 0;
 
   private constructor(app: Application) {
     this.app = app;
@@ -88,10 +96,10 @@ export class Renderer {
     this.agentLayer.addChild(this.player);
     this.overlay.addChild(this.debug);
     app.stage.addChild(this.world, this.overlay);
+    this.cues = new ScreenCues(app.stage);
     this.player.addChild(drawPlayer());
     this.animals = new AnimalLayer(this.agentLayer, this.overlay);
     this.signs = new SignLayer(this.signLayer, this.overlay);
-    this.overlay.addChild(this.scanRing);
     this.canopyTextures = COLORS.canopy.map((color) => canopyTexture(app, color));
   }
 
@@ -148,16 +156,29 @@ export class Renderer {
     this.player.position.set(x, y);
     this.player.rotation = lerpAngle(prev.player.heading, curr.player.heading, alpha);
 
+    this.updateLook(width, height, curr.bow !== null);
+    const ox = width / 2 - this.look.x;
+    const oy = height / 2 - this.look.y;
     for (const layer of [this.world, this.overlay]) {
       layer.scale.set(this.zoom);
-      layer.position.set(width / 2 - x * this.zoom, height / 2 - y * this.zoom);
+      layer.position.set(ox - x * this.zoom, oy - y * this.zoom);
     }
 
     const seen = this.animals.update(prev, curr, alpha, this.zoom);
     this.signs.update(curr, this.zoom, performance.now());
-    this.drawScan(curr, x, y);
     this.fadeCanopies([{ x: pxM, y: pyM }, ...seen]);
     this.drawDebug(curr);
+    this.cues.draw(
+      curr,
+      { x: ox, y: oy },
+      (wx, wy) => ({
+        x: ox + (wx - pxM) * PX_PER_M * this.zoom,
+        y: oy + (wy - pyM) * PX_PER_M * this.zoom,
+      }),
+      width,
+      height,
+      performance.now(),
+    );
 
     // Darken by tinting the whole world (a multiply), not with an overlay pass.
     const dark = 1 - lerp(prev.light, curr.light, alpha);
@@ -171,11 +192,59 @@ export class Renderer {
     this.app.render();
   }
 
+  /** Where the mouse is, so the camera can look that way (null when it leaves the window). */
+  setPointer(p: { x: number; y: number } | null): void {
+    this.pointer = p;
+  }
+
+  /** Show which way a sound came from, relative to the player (radians, screen convention). */
+  addSound(kind: SoundKind, angle: number): void {
+    this.cues.addSound(kind, angle, performance.now());
+  }
+
+  /**
+   * Ease the camera towards the mouse so you can look further in any
+   * direction, but never so far the player leaves the screen. It holds still
+   * while the bow is drawn, since the mouse is aiming then.
+   */
+  private updateLook(width: number, height: number, frozen: boolean): void {
+    const now = performance.now();
+    const dt = this.lastFrame === 0 ? 16 : Math.min(100, now - this.lastFrame);
+    this.lastFrame = now;
+    if (frozen) return;
+    const margin = Math.min(160, Math.min(width, height) * 0.22);
+    let tx = 0;
+    let ty = 0;
+    if (this.pointer) {
+      tx = clamp(
+        (this.pointer.x - width / 2) * LOOK_AHEAD,
+        -(width / 2 - margin),
+        width / 2 - margin,
+      );
+      ty = clamp(
+        (this.pointer.y - height / 2) * LOOK_AHEAD,
+        -(height / 2 - margin),
+        height / 2 - margin,
+      );
+    }
+    const k = 1 - Math.exp(-dt / 280);
+    this.look.x += (tx - this.look.x) * k;
+    this.look.y += (ty - this.look.y) * k;
+  }
+
   /** Screen pixel to world metres. */
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     return {
       x: (sx - this.world.position.x) / this.zoom / PX_PER_M,
       y: (sy - this.world.position.y) / this.zoom / PX_PER_M,
+    };
+  }
+
+  /** World metres to screen pixel. */
+  worldToScreen(x: number, y: number): { x: number; y: number } {
+    return {
+      x: this.world.position.x + x * PX_PER_M * this.zoom,
+      y: this.world.position.y + y * PX_PER_M * this.zoom,
     };
   }
 
@@ -186,20 +255,6 @@ export class Renderer {
 
   setHoverSign(id: number): void {
     this.signs.setHover(id);
-  }
-
-  /** While scanning: a ring sweeping round the search radius. */
-  private drawScan(s: Snapshot, x: number, y: number): void {
-    const g = this.scanRing;
-    g.clear();
-    if (s.tracking.scan === null) return;
-    const r = SCAN_RADIUS_M * PX_PER_M;
-    const start = -Math.PI / 2;
-    g.circle(x, y, r).stroke({ width: 1.5 / this.zoom, color: COLORS.signHalo, alpha: 0.35 });
-    g.moveTo(x, y)
-      .arc(x, y, r, start, start + Math.PI * 2 * Math.max(0.02, s.tracking.scan))
-      .lineTo(x, y)
-      .fill({ color: COLORS.signHalo, alpha: 0.08 });
   }
 
   private buildCanopies(map: RegionMap): void {

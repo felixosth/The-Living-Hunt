@@ -194,22 +194,43 @@ function onTrail(seed = 1) {
 }
 
 describe('scanning, reading and following', () => {
-  it('a scan finds nearby signs and never far ones', () => {
+  it('crouching still finds nearby signs, never far ones, and fresh ones first', () => {
     const { world } = onTrail();
-    step(world, [{ type: 'scan' }], 6);
+    world.player.gait = 'sneak';
+    for (let i = 0; i < 10; i++) step(world, [], 6);
     let found = 0;
-    const events = [];
-    for (let i = 0; i < 10; i++) events.push(...step(world, [], 6));
-    const scanned = events.find((e) => e.type === 'scanned');
-    expect(scanned).toBeDefined();
     const { signs, player } = world;
+    let foundClarity = 0;
+    let missedClarity = 0;
+    let missed = 0;
     for (let i = 0; i < signs.count; i++) {
-      if (!((signs.flags[i] as number) & SignFlag.Noticed)) continue;
-      found++;
       const d = Math.hypot((signs.x[i] as number) - player.x, (signs.y[i] as number) - player.y);
-      expect(d).toBeLessThanOrEqual(12.01);
+      if ((signs.flags[i] as number) & SignFlag.Noticed) {
+        found++;
+        foundClarity += signs.integrity[i] as number;
+        expect(d).toBeLessThanOrEqual(10.01);
+      } else if (d < 10) {
+        missed++;
+        missedClarity += signs.integrity[i] as number;
+      }
     }
     expect(found).toBeGreaterThan(0);
+    if (missed > 0) expect(foundClarity / found).toBeGreaterThan(missedClarity / missed);
+  });
+
+  it('running finds nothing subtle', () => {
+    const { world } = onTrail();
+    world.signs.flags.fill(0);
+    // Faint signs only: nothing obvious to notice in passing.
+    for (let i = 0; i < world.signs.count; i++) {
+      world.signs.integrity[i] = Math.min(world.signs.integrity[i] as number, 0.5);
+    }
+    for (let i = 0; i < 10; i++) step(world, [{ type: 'move', x: 1, y: 0, gait: 'run' }], 6);
+    let found = 0;
+    for (let i = 0; i < world.signs.count; i++) {
+      if ((world.signs.flags[i] as number) & SignFlag.Noticed) found++;
+    }
+    expect(found).toBe(0);
   });
 
   it('reading a sign up close teaches a little; from afar does nothing', () => {

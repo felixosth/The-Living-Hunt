@@ -11,7 +11,7 @@ import type { Animal } from './state';
 /** Distance between recorded prints, per gait (a record stands for a set of four feet). */
 function strideLength(a: Animal): number {
   const flee = SPECIES[a.species].speed.flee;
-  const base = a.species === 'roe' ? 3 : 2.5;
+  const base = a.species === 'roe' ? 4.5 : 3.5;
   return a.speed > flee * 0.6 ? base * 1.7 : a.speed > flee * 0.3 ? base * 1.3 : base;
 }
 

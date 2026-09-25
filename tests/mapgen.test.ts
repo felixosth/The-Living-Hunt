@@ -92,7 +92,7 @@ describe('forest region generation', () => {
     const y = (Math.floor(cell / map.nav.cols) + 0.5) * map.nav.cellSize;
     const ground = groundAt(map, x, y);
     expect(ground.trail).toBe(true);
-    expect(ground.softness).toBeGreaterThanOrEqual(0.6);
+    expect(ground.softness).toBeGreaterThanOrEqual(0.45);
   });
 
   it('memoises generated regions', () => {

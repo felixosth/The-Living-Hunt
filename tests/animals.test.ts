@@ -106,6 +106,22 @@ describe('senses', () => {
     expect(flushedAt[0]).toBeLessThan(25);
   });
 
+  it('a deer pushed against the edge of the region runs along it and gets away', () => {
+    const { world, a } = lone('roe');
+    world.weather = { windFromDeg: 0, windSpeed: 1 };
+    Object.assign(a, { x: 6, y: CENTRE.y, activity: 'feeding', until: world.time + 7200 });
+    Object.assign(world.player, { x: 40, y: CENTRE.y, gait: 'run' });
+    const start = { x: a.x, y: a.y };
+    for (let i = 0; i < 60; i++) {
+      // Keep pushing towards the edge.
+      step(world, [{ type: 'move', x: -1, y: 0, gait: 'run' }], 6);
+    }
+    expect(Math.hypot(a.x - start.x, a.y - start.y)).toBeGreaterThan(40);
+    for (let i = 0; i < 60; i++) step(world, [{ type: 'move', x: 0, y: 0, gait: 'walk' }], 60);
+    // Once it calms down it doesn't stay pinned to the edge.
+    expect(Math.min(a.x, a.y, 256 - a.x, 256 - a.y)).toBeGreaterThan(8);
+  });
+
   it('a herd runs together', () => {
     const world = createWorld(3);
     const herdLeader = world.animals.find(

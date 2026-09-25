@@ -8,7 +8,7 @@ import { SPECIES_IDS, type SpeciesId } from '../content/species';
 import type { TerrainId } from '../content/terrain';
 import { type GameTime, lightLevel } from '../core/time';
 import { ALARMED, SUSPICIOUS } from './animals';
-import { DRESS_SECONDS, interactPrompt } from './hunting';
+import { DRESS_SECONDS, interactPrompt, isHeadDown } from './hunting';
 import { type Knowledge, level } from './knowledge';
 import { sightlineObstruction } from './perception';
 import { getRegionMap, groundAt, type RegionId, type RegionMap } from './region';
@@ -23,7 +23,7 @@ import {
   type ScentCone,
   scentCone,
 } from './stealth';
-import { SCAN_SECONDS } from './tracking';
+import { type SearchPosture, searchPosture } from './tracking';
 
 export type Alertness = 'unaware' | 'suspicious' | 'alarmed' | 'fleeing';
 
@@ -83,6 +83,11 @@ export interface BowView {
   brush: number;
   /** How well you know the target's anatomy (0–4). */
   anatomyLevel: number;
+  /** Grazing or drinking with its head down. */
+  headDown: boolean;
+  /** How aware of you it is. */
+  alertness: Alertness;
+  awareness: number;
 }
 
 export interface Snapshot {
@@ -111,7 +116,7 @@ export interface Snapshot {
     carrying: { species: SpeciesId; weightKg: number } | null;
     /** What the interact key (E) would do here. */
     prompt: string | null;
-    busy: 'scan' | 'dress' | null;
+    busy: 'dress' | null;
     /** Progress of the current timed action, 0..1. */
     busyProgress: number;
   };
@@ -127,8 +132,8 @@ export interface Snapshot {
   /** Changes whenever the found signs change. */
   signsRevision: number;
   tracking: {
-    /** Scan progress 0..1, or null when not scanning. */
-    scan: number | null;
+    /** How closely you're looking at the ground. */
+    searching: SearchPosture;
     following: { species: SpeciesId | null; lost: boolean } | null;
     knowledge: KnowledgeView;
   };
@@ -173,6 +178,9 @@ function bowView(state: WorldState, map: RegionMap): BowView | null {
           : 'breathing',
     brush: sightlineObstruction(map, player.x, player.y, a.x, a.y),
     anatomyLevel: level(player.knowledge.species[a.species]),
+    headDown: isHeadDown(a),
+    alertness: alertnessOf(a),
+    awareness: a.awareness,
   };
 }
 
@@ -276,9 +284,7 @@ export function makeSnapshot(
       prompt: player.busy || player.bow ? null : interactPrompt(state, map),
       busy: player.busy,
       busyProgress: player.busy
-        ? 1 -
-          Math.max(0, player.busyUntil - state.time) /
-            (player.busy === 'scan' ? SCAN_SECONDS : DRESS_SECONDS)
+        ? 1 - Math.max(0, player.busyUntil - state.time) / DRESS_SECONDS
         : 0,
     },
     bow: bowView(state, map),
@@ -291,10 +297,7 @@ export function makeSnapshot(
     signs: noticedSigns(state.signs),
     signsRevision: state.signs.revision,
     tracking: {
-      scan:
-        player.busy === 'scan'
-          ? 1 - Math.max(0, player.busyUntil - state.time) / SCAN_SECONDS
-          : null,
+      searching: searchPosture(player),
       following: player.follow
         ? {
             species: state.animals.find((a) => a.id === player.follow?.animal)?.species ?? null,

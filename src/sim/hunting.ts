@@ -8,7 +8,7 @@ import { BloodType } from '../content/blood';
 import { CARRY_CAPACITY_KG } from '../content/gear';
 import { SPECIES } from '../content/species';
 import { chance, nextRange } from '../core/rng';
-import { animalContext, applyHit } from './animals';
+import { animalContext, applyHit, SUSPICIOUS } from './animals';
 import type { SimEvent } from './events';
 import { learn, lesson } from './knowledge';
 import { sightlineObstruction } from './perception';
@@ -73,6 +73,15 @@ export function noteSignFound(player: PlayerState, animalId: number, now: number
 // The bow
 // ---------------------------------------------------------------------------
 
+/** Grazing or drinking, unaware: head down, not watching. */
+export function isHeadDown(a: Animal): boolean {
+  return (
+    (a.activity === 'feeding' || a.activity === 'drinking') &&
+    a.awareness < SUSPICIOUS &&
+    a.speed < 2
+  );
+}
+
 export function draw(state: WorldState, targetId: number): void {
   const p = state.player;
   if (p.bow || p.busy || p.carrying !== null || p.arrows <= 0) return;
@@ -130,7 +139,7 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[]): 
   const brush = sightlineObstruction(map, p.x, p.y, a.x, a.y);
   const result = chance(rng, brush * 0.9)
     ? { zone: 'miss' as const, passThrough: true, tainted: false }
-    : castArrow(a.species, theta, u, v, rng);
+    : castArrow(a.species, theta, u, v, rng, isHeadDown(a));
   p.arrows--;
 
   const r = record(p, a.id);

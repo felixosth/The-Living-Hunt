@@ -19,6 +19,15 @@ All four steps are built and deployed; the fun gate needs playtesting. Differenc
   - the reticle in `src/sim/shot.ts`;
   - the wound table in `src/sim/animals.ts`.
 
+### Changes after the first playtest
+
+- **Scanning is gone.** Crouch (`C`) and keep still to study the ground: nearby signs show up one by one, fresh ones first. You still notice signs as you creep, but less, and obvious ones as you walk. Running notices nothing.
+- **Fewer, clearer prints:** one record per 4.5 m of a roe deer's stride (3.5 m for a hare), and trails take prints less deeply. Following a trail dims other animals' signs.
+- **Following reveals the next signs within 12 m**, not 25. You lose the trail at 20 m from the last sign.
+- **Animals no longer get pinned at the edge of the region.** Fleeing bends away from the edge and runs along it, and a wedged animal steps back onto open ground.
+- **Camera look-ahead** towards the mouse, keeping the player on screen; it holds still while the bow is drawn. Sounds show as direction arcs around the player. Animals in view but off screen get markers at the screen edge.
+- **The shot:** grazing and drinking animals lower their heads, which changes the side view and what the arrow can hit. The inset shows the animal's awareness, its ears, eye and rump patch, which flares when it's alarmed.
+
 ## The hunt this milestone has to deliver
 
 1. You leave **Einar's cabin** at dawn. The wind is from the south-west.
@@ -73,7 +82,7 @@ Each step ends playable, is pushed to `main` and deploys.
 - **Decay:** hourly, by kind and ground. For example, a print lasts about 2 days in mud and 8 hours on grass, while pellets last about a week.
 - **Noticing:**
   - Obvious signs appear by themselves when you walk close: fresh prints in mud, blood, and arrows.
-  - **Scan** (`Q`): you crouch for 20 game seconds and search a radius of 12 m. Each sign is found with a chance set by its integrity, its kind, the light and your literacy.
+  - **Scan** (`Q`): you crouch for 20 game seconds and search a radius of 12 m. Each sign is found with a chance set by its integrity, its kind, the light and your literacy. *(Replaced after the first playtest by crouching and keeping still.)*
 - **Inspect** (click a found sign): a **reading** card from the pure `readSign(sign, knowledge, now)`. Each field (species, age, weight, gait, heading, group size, blood type) is blurred by your knowledge level (0–4). Ranges always contain the truth (a property test checks this), and the same sign gives the same reading until your knowledge changes.
 - **Knowledge:** per species and per sign kind, as experience points. Inspecting teaches a little. **Confirming** teaches a lot: seeing the animal whose trail you're following, or butchering an animal and learning its true weight. Level-ups appear as toasts.
 - **Follow** (`F`, or the button on the card): as you walk, the next prints of that animal within about 25 m light up, with a chance set by their integrity and your literacy. Gaps on poor ground lose the trail until you scan.
