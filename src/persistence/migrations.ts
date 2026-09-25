@@ -81,6 +81,19 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
     const player = old.player as Record<string, unknown>;
     return { ...old, player: { ...player, busy: player.busy === 'scan' ? null : player.busy } };
   },
+  /** Practice with the bow; a save caught with the bow drawn lets it down. */
+  5: (old) => {
+    const player = old.player as Record<string, unknown>;
+    const knowledge = player.knowledge as Record<string, unknown>;
+    return {
+      ...old,
+      player: {
+        ...player,
+        bow: null,
+        knowledge: { ...knowledge, hands: initialKnowledge().hands },
+      },
+    };
+  },
 };
 
 export function migrateState(

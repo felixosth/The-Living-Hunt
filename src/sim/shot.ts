@@ -7,8 +7,10 @@
  */
 import { anatomyFor, type Part, type PartId } from '../content/anatomy';
 import type { SpeciesId } from '../content/species';
+import { hash32 } from '../core/hash';
 import { chance, nextFloat, type RngState } from '../core/rng';
 import { GAME_SECONDS_PER_REAL_SECOND as REAL } from '../core/time';
+import { MAX_LEVEL } from './knowledge';
 import type { BowState, HitZone } from './state';
 
 /** You can't draw on anything further than this. */
@@ -21,14 +23,16 @@ export const BOW_RANGE_M = 50;
 export const BREATH_HOLD_S = 5 * REAL;
 /** After letting a breath go, how long until you can hold it again: 4 real seconds. */
 const BREATH_RECOVER_S = 4 * REAL;
-/** Past a held breath, the shaking doubles your spread every 1.5 real seconds or so. */
+/** Past a held breath, the drift doubles and a tremor builds every 1.5 real seconds or so. */
 const SHAKE_S = 1.5 * REAL;
-/** Settling after the draw: the extra spread shrinks by two-thirds every 1.2 real seconds. */
+/** Settling after the draw: the extra drift shrinks by two-thirds every 1.2 real seconds. */
 const SETTLE_S = 1.2 * REAL;
 /** Your arms tire after holding at full draw for 12 real seconds. */
 const TIRE_AFTER_S = 12 * REAL;
-/** Then the spread grows by this many radians per real second. */
+/** Then the aim wanders more by this many radians per real second. */
 const TIRE_RATE = 0.002;
+/** How far ahead of the last tick a release can be timed, in real seconds (one tick and a bit). */
+export const MAX_RELEASE_LEAD_S = 0.15;
 
 /**
  * The animal's heading relative to the line of fire (radians): 0 = facing
@@ -188,37 +192,136 @@ export function castArrow(
   };
 }
 
-/** Steadiness multiplier from breath: steady while held, shaky after, then recovering. */
-export function breathFactor(bow: BowState, now: number): number {
-  if (bow.breathAt > 0) {
-    const held = now - bow.breathAt;
-    return held <= BREATH_HOLD_S ? 0.5 : 0.5 + (held - BREATH_HOLD_S) / SHAKE_S;
-  }
-  if (bow.breathOutAt > 0 && now - bow.breathOutAt < BREATH_RECOVER_S) return 1.3;
-  return 1;
+export type BreathState = 'breathing' | 'holding' | 'shaking' | 'recovering';
+
+export function breathState(bow: BreathTimes, now: number): BreathState {
+  if (bow.breathAt > 0) return now - bow.breathAt <= BREATH_HOLD_S ? 'holding' : 'shaking';
+  if (bow.breathOutAt > 0 && now - bow.breathOutAt < BREATH_RECOVER_S) return 'recovering';
+  return 'breathing';
 }
 
-export function canHoldBreath(bow: BowState, now: number): boolean {
+type BreathTimes = Pick<BowState, 'breathAt' | 'breathOutAt'>;
+
+export function canHoldBreath(bow: BreathTimes, now: number): boolean {
   return bow.breathAt === 0 && (bow.breathOutAt === 0 || now - bow.breathOutAt >= BREATH_RECOVER_S);
 }
 
 /**
- * The reticle: one standard deviation of where the arrow lands, in metres at
- * the target. It shrinks as you settle after drawing and grows with distance,
- * movement, a long hold and a moving target.
+ * Practice with the bow (experience 0–5) steadies you a little: at most a
+ * fifth less drift, tremor and scatter, and a slower drift.
  */
-export function reticleSigma(
+export function practiceShare(bowXp: number): number {
+  return Math.max(0, Math.min(1, bowXp / (MAX_LEVEL + 1)));
+}
+
+/** Everything the aim's movement depends on; the UI draws it from the same numbers. */
+export interface SwayInput extends BreathTimes {
+  target: number;
+  drawnAt: number;
+  distance: number;
+  /** You are creeping with the bow drawn. */
+  moving: boolean;
+  /** Experience with the bow. */
+  bowXp: number;
+}
+
+/** The sway input for a drawn bow. */
+export function swayInput(
   bow: BowState,
-  now: number,
   distance: number,
   moving: boolean,
-  targetSpeed: number,
-): number {
-  const held = now - bow.drawnAt;
+  bowXp: number,
+): SwayInput {
+  return {
+    target: bow.target,
+    drawnAt: bow.drawnAt,
+    breathAt: bow.breathAt,
+    breathOutAt: bow.breathOutAt,
+    distance,
+    moving,
+    bowXp,
+  };
+}
+
+export interface Sway {
+  /** Where the arrow would go now, relative to your aim point, in metres at the target. */
+  u: number;
+  v: number;
+  /** Half-width of the slow drift, metres. */
+  drift: number;
+  /** Size of the fast tremor, metres. */
+  tremor: number;
+}
+
+/**
+ * How your aim moves while you hold the bow drawn: a slow drift from your
+ * body and breathing, plus a fast tremor when you are out of breath or your
+ * arms are tiring. The arrow flies wherever the aim is at the moment you
+ * release, so the skill is to release as the drift crosses the vitals.
+ *
+ * Deterministic in game time, so the sim and the shot inset agree.
+ */
+export function sway(input: SwayInput, now: number): Sway {
+  const held = Math.max(0, now - input.drawnAt);
+  const practice = practiceShare(input.bowXp);
+  const steady = 1 - 0.2 * practice;
   const settle = 0.02 * Math.exp(-held / SETTLE_S);
-  const fatigue = held > TIRE_AFTER_S ? (TIRE_RATE * (held - TIRE_AFTER_S)) / REAL : 0;
-  const angular = (0.0035 + settle + (moving ? 0.015 : 0) + fatigue) * breathFactor(bow, now);
-  return Math.min(1.5, angular * distance + 0.02 * targetSpeed);
+  const tired = held > TIRE_AFTER_S ? (TIRE_RATE * (held - TIRE_AFTER_S)) / REAL : 0;
+
+  let breathDrift = 1;
+  let breathTremor = 0;
+  switch (breathState(input, now)) {
+    case 'holding':
+      // Breathing out and holding calms you over half a second.
+      breathDrift = 1 - 0.5 * Math.min(1, (now - input.breathAt) / (0.5 * REAL));
+      break;
+    case 'shaking': {
+      const over = (now - input.breathAt - BREATH_HOLD_S) / SHAKE_S;
+      breathDrift = Math.min(1.5, 0.5 + over);
+      breathTremor = Math.min(0.02, 0.006 * over);
+      break;
+    }
+    case 'recovering':
+      breathDrift = 1.2;
+      breathTremor = 0.001;
+      break;
+  }
+  const driftAngle =
+    (0.0035 + settle + (input.moving ? 0.015 : 0) + 0.5 * tired) * breathDrift * steady;
+  const tremorAngle = (breathTremor + 0.6 * tired) * steady;
+  const drift = driftAngle * input.distance;
+  const tremor = tremorAngle * input.distance;
+
+  // Real seconds since the draw, slowed a little by practice.
+  const t = held / REAL;
+  const slow = 1 - 0.25 * practice;
+  const ph = phases(input.target, input.drawnAt);
+  const wave = (hz: number, k: number) => Math.sin(TAU * hz * t + (ph[k] as number));
+  const pu = 0.7 * wave(0.23 * slow, 0) + 0.35 * wave(0.61 * slow, 1);
+  const pv = 0.6 * wave(0.29 * slow, 2) + 0.4 * wave(0.73 * slow, 3);
+  const tu = 0.7 * wave(3.1, 4) + 0.3 * wave(5.3, 5);
+  const tv = 0.7 * wave(2.7, 6) + 0.3 * wave(4.9, 7);
+  return { u: drift * pu + tremor * tu, v: drift * pv + tremor * tv, drift, tremor };
+}
+
+const TAU = Math.PI * 2;
+
+/** Fixed per draw, so each draw drifts its own way. */
+function phases(target: number, drawnAt: number): number[] {
+  return Array.from(
+    { length: 8 },
+    (_, k) => ((hash32(target, drawnAt, k) % 6283) / 1000) as number,
+  );
+}
+
+/**
+ * Scatter you can't see or time: release, string and arrow. One standard
+ * deviation of the landing point around the aim, in metres at the target.
+ * A moving target adds to it, since it moves on while the arrow flies.
+ */
+export function scatter(distance: number, targetSpeed: number, bowXp: number): number {
+  const steady = 1 - 0.2 * practiceShare(bowXp);
+  return Math.min(1.5, 0.002 * distance * steady + 0.02 * targetSpeed);
 }
 
 /** A standard normal sample (Box–Muller). */

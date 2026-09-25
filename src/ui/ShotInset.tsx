@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'preact/hooks';
 import type { PartId } from '../content/anatomy';
 import { SPECIES } from '../content/species';
-import { type Projected, projectAnatomy } from '../sim/shot';
-import { snapshot } from './store';
+import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
+import { type Projected, projectAnatomy, sway } from '../sim/shot';
+import type { BowView } from '../sim/snapshot';
+import { sinceTick, snapshot } from './store';
 
 /** Which organ outlines your anatomy knowledge shows, by level. */
 const OUTLINES: PartId[][] = [
@@ -108,6 +111,61 @@ function Details({
   );
 }
 
+/** Re-render every animation frame while mounted. */
+function useEveryFrame(): void {
+  const [, setFrame] = useState(0);
+  useEffect(() => {
+    let id = requestAnimationFrame(function loop() {
+      setFrame((f) => f + 1);
+      id = requestAnimationFrame(loop);
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+}
+
+/**
+ * The crosshair shows where the arrow would go right now: your aim point
+ * (the small ring) moved by the drift and tremor. The circle around the
+ * crosshair is the scatter you can't time away.
+ */
+function Reticle({
+  bow,
+  time,
+  color,
+  k,
+  r,
+}: {
+  bow: BowView;
+  time: number;
+  color: string;
+  k: number;
+  r: number;
+}) {
+  useEveryFrame();
+  const drift = sway(bow.sway, time + sinceTick() * GAME_SECONDS_PER_REAL_SECOND);
+  const x = bow.aimU + drift.u;
+  const y = -(bow.aimV + drift.v);
+  const line = { stroke: color, 'stroke-width': 0.008 * k };
+  return (
+    <g>
+      <circle
+        cx={bow.aimU}
+        cy={-bow.aimV}
+        r={0.012 * k}
+        fill="none"
+        stroke={color}
+        stroke-width={0.006 * k}
+        opacity={0.5}
+      />
+      <circle cx={x} cy={y} r={r} fill="none" stroke={color} stroke-width={0.012 * k} />
+      <line x1={x - r - 0.04 * k} x2={x - 0.02 * k} y1={y} y2={y} {...line} />
+      <line x1={x + 0.02 * k} x2={x + r + 0.04 * k} y1={y} y2={y} {...line} />
+      <line y1={y - r - 0.04 * k} y2={y - 0.02 * k} x1={x} x2={x} {...line} />
+      <line y1={y + 0.02 * k} y2={y + r + 0.04 * k} x1={x} x2={x} {...line} />
+    </g>
+  );
+}
+
 /** The side view of your target at its angle to you, with the reticle. */
 export function ShotInset() {
   const s = snapshot.value;
@@ -165,46 +223,7 @@ export function ShotInset() {
             dash={bow.anatomyLevel < 4 ? '0.025 0.015' : undefined}
           />
         ))}
-        <circle
-          cx={bow.aimU}
-          cy={-bow.aimV}
-          r={r}
-          fill="none"
-          stroke={reticle}
-          stroke-width={0.012 * k}
-        />
-        <line
-          x1={bow.aimU - r - 0.04 * k}
-          x2={bow.aimU - 0.02 * k}
-          y1={-bow.aimV}
-          y2={-bow.aimV}
-          stroke={reticle}
-          stroke-width={0.008 * k}
-        />
-        <line
-          x1={bow.aimU + 0.02 * k}
-          x2={bow.aimU + r + 0.04 * k}
-          y1={-bow.aimV}
-          y2={-bow.aimV}
-          stroke={reticle}
-          stroke-width={0.008 * k}
-        />
-        <line
-          y1={-bow.aimV - r - 0.04 * k}
-          y2={-bow.aimV - 0.02 * k}
-          x1={bow.aimU}
-          x2={bow.aimU}
-          stroke={reticle}
-          stroke-width={0.008 * k}
-        />
-        <line
-          y1={-bow.aimV + 0.02 * k}
-          y2={-bow.aimV + r + 0.04 * k}
-          x1={bow.aimU}
-          x2={bow.aimU}
-          stroke={reticle}
-          stroke-width={0.008 * k}
-        />
+        <Reticle bow={bow} time={s.time} color={reticle} k={k} r={r} />
       </svg>
       <div class="inset-info">
         <span>
@@ -242,7 +261,8 @@ export function ShotInset() {
         )}
       </div>
       <div class="inset-info dim">
-        Move the mouse to aim · click to shoot · release right button to let down
+        Move the mouse to aim · click as the crosshair drifts over the vitals · release right button
+        to let down
       </div>
     </div>
   );

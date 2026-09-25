@@ -9,10 +9,19 @@ import type { TerrainId } from '../content/terrain';
 import { type GameTime, lightLevel } from '../core/time';
 import { ALARMED, SUSPICIOUS } from './animals';
 import { DRESS_SECONDS, interactPrompt, isHeadDown } from './hunting';
-import { type Knowledge, level } from './knowledge';
+import { type HandSkill, type Knowledge, level } from './knowledge';
 import { sightlineObstruction } from './perception';
 import { getRegionMap, groundAt, type RegionId, type RegionMap } from './region';
-import { angleName, breathFactor, relativeAngle, reticleSigma, type ShotAngle } from './shot';
+import {
+  angleName,
+  type BreathState,
+  breathState,
+  relativeAngle,
+  type ShotAngle,
+  type SwayInput,
+  scatter,
+  swayInput,
+} from './shot';
 import { SIGN_KIND_NAMES, SignFlag, SignKind, type SignKindName, type SignStore } from './signs';
 import type { Activity, Animal, Gait, WorldState } from './state';
 import {
@@ -65,6 +74,7 @@ export interface KnowledgeView {
   /** Levels 0–4 and progress (0..1) to the next. */
   species: Record<SpeciesId, { level: number; progress: number }>;
   signs: Record<SignKindName, { level: number; progress: number }>;
+  hands: Record<HandSkill, { level: number; progress: number }>;
 }
 
 export interface BowView {
@@ -74,11 +84,14 @@ export interface BowView {
   /** Target heading relative to the line of fire (radians). */
   theta: number;
   angle: ShotAngle;
-  /** Reticle: one standard deviation of the arrow's landing point, in metres. */
+  /** Scatter you can't time away: one standard deviation of the landing point, in metres. */
   sigma: number;
+  /** Where you are aiming, before the drift. */
   aimU: number;
   aimV: number;
-  breath: 'breathing' | 'holding' | 'shaking' | 'recovering';
+  /** What the drift and tremor depend on: pass to `sway()` with the game time to draw them. */
+  sway: SwayInput;
+  breath: BreathState;
   /** Twigs in the way: 0 clear to 1 blocked. */
   brush: number;
   /** How well you know the target's anatomy (0–4). */
@@ -158,24 +171,17 @@ function bowView(state: WorldState, map: RegionMap): BowView | null {
   const distance = Math.hypot(a.x - player.x, a.y - player.y);
   const theta = relativeAngle(a.heading, player.x, player.y, a.x, a.y);
   const now = state.time;
-  const factor = breathFactor(bow, now);
   return {
     targetId: a.id,
     species: a.species,
     distance,
     theta,
     angle: angleName(theta),
-    sigma: reticleSigma(bow, now, distance, isMoving(player), a.speed),
+    sigma: scatter(distance, a.speed, player.knowledge.hands.bow),
     aimU: bow.aimU,
     aimV: bow.aimV,
-    breath:
-      bow.breathAt > 0
-        ? factor <= 0.5
-          ? 'holding'
-          : 'shaking'
-        : factor > 1
-          ? 'recovering'
-          : 'breathing',
+    sway: swayInput(bow, distance, isMoving(player), player.knowledge.hands.bow),
+    breath: breathState(bow, now),
     brush: sightlineObstruction(map, player.x, player.y, a.x, a.y),
     anatomyLevel: level(player.knowledge.species[a.species]),
     headDown: isHeadDown(a),
@@ -196,6 +202,7 @@ function knowledgeView(k: Knowledge): KnowledgeView {
     signs: Object.fromEntries(
       Object.entries(k.signs).map(([key, xp]) => [key, view(xp)]),
     ) as KnowledgeView['signs'],
+    hands: { bow: view(k.hands.bow) },
   };
 }
 

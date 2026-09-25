@@ -28,6 +28,7 @@ All four steps are built and deployed; the fun gate needs playtesting. Differenc
 - **Camera look-ahead** towards the mouse, keeping the player on screen; it holds still while the bow is drawn. Sounds show as direction arcs around the player. Animals in view but off screen get markers at the screen edge.
 - **Wind and scent are drawn on the map** (second playtest): faint streaks blow with the wind, and a haze of your scent drifts downwind as far as an animal could smell it. **Arrows fly** visibly from the bow and lie where they land; a hit throws up a puff of hair.
 - **The bow's timings are in real seconds** (they had been game seconds, a sixtieth as long at normal speed): the aim settles over about three seconds, a held breath steadies you for five, and your arms tire after twelve. `T` does nothing while the bow is drawn.
+- **Aim sway and practice** (third playtest): the crosshair drifts slowly while drawn, and trembles when you are out of breath or your arms tire. The arrow goes where the crosshair is when you click, plus a small scatter you can't time away. Every arrow you loose is practice for your bow arm (a new *Hands* page in the journal); at most, practice makes the drift, tremor and scatter a fifth smaller and the drift slower. It never adds damage.
 - **The shot:** grazing and drinking animals lower their heads, which changes the side view and what the arrow can hit. The inset shows the animal's awareness, its ears, eye and rump patch, which flares when it's alarmed.
 
 ## The hunt this milestone has to deliver

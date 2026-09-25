@@ -25,10 +25,10 @@ Add `?seed=123` to the URL to generate a different world.
 | Click a found sign | Read it (you have to be close) |
 | <kbd>F</kbd> | Follow the trail of the sign you read, or stop following |
 | Right mouse (hold) on an animal | Draw the bow; the shot inset shows its side view |
-| Mouse, then left click | Aim on the side view, then loose the arrow |
+| Mouse, then left click | Aim on the side view; the crosshair drifts, so loose the arrow as it crosses the vitals |
 | <kbd>Space</kbd> (hold, while drawn) | Hold your breath: five seconds of steadier aim, then you shake |
 | <kbd>E</kbd> | Field-dress, pick up, put down, or bring an animal into the cabin |
-| <kbd>J</kbd> | Journal: what you know |
+| <kbd>J</kbd> | Journal: what you know, and how steady your bow arm is |
 | <kbd>T</kbd> / <kbd>P</kbd> | Wait (10×, stops when something stirs) / pause |
 | <kbd>H</kbd> | All controls |
 | Mouse wheel | Zoom. The camera also leans towards the mouse, so point where you want to look |

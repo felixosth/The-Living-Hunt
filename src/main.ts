@@ -30,7 +30,9 @@ import {
   perf,
   reading,
   showToast,
+  sinceTick,
   snapshot,
+  snapshotClock,
   summary,
 } from './ui/store';
 
@@ -55,6 +57,7 @@ async function boot(): Promise<void> {
     renderer.setRegion(getRegionMap(state.seed, state.regionId), state.seed);
     input.resync();
     snapshot.value = session.curr;
+    snapshotClock.at = performance.now();
   };
   showWorld(session.state);
 
@@ -136,7 +139,8 @@ async function boot(): Promise<void> {
     breath: (hold) => session.enqueue({ type: 'breath', hold }),
     release() {
       flushAim();
-      session.enqueue({ type: 'release' });
+      // Say when in the tick you clicked, so the arrow goes where the aim was.
+      session.enqueue({ type: 'release', lead: sinceTick() });
       input.resync();
     },
     lower() {
@@ -395,6 +399,7 @@ async function boot(): Promise<void> {
       tickMsSum += performance.now() - t0;
       ticks++;
       snapshot.value = session.curr;
+      snapshotClock.at = performance.now();
       if (controls.value.sneakToggled !== input.sneakToggled) syncControls();
     },
     frame(alpha, frameMs) {

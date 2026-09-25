@@ -2,6 +2,7 @@
 import { signal } from '@preact/signals';
 import type { TimeScale } from '../app/session';
 import type { Reading } from '../sim/reading';
+import { MAX_RELEASE_LEAD_S } from '../sim/shot';
 import type { Snapshot } from '../sim/snapshot';
 import type { HuntSummary } from '../sim/state';
 
@@ -39,6 +40,17 @@ export interface Toast {
 }
 
 export const snapshot = signal<Snapshot | null>(null);
+
+/** When the current snapshot arrived (performance.now()). */
+export const snapshotClock = { at: 0 };
+
+/**
+ * Real seconds since the last tick, so time-driven drawings like the bow's
+ * drift can run smoothly between ticks. Capped, so they stop when paused.
+ */
+export function sinceTick(): number {
+  return Math.min(MAX_RELEASE_LEAD_S, Math.max(0, (performance.now() - snapshotClock.at) / 1000));
+}
 export const perf = signal<Perf>({ fps: 0, frameMs: 0, tickMs: 0 });
 export const controls = signal<{ timeScale: TimeScale; paused: boolean; sneakToggled: boolean }>({
   timeScale: 1,

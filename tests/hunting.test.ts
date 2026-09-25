@@ -10,10 +10,13 @@ import {
   project,
   projectAnatomy,
   relativeAngle,
-  reticleSigma,
+  type SwayInput,
+  scatter,
+  sway,
+  swayInput,
 } from '../src/sim/shot';
 import { SignKind } from '../src/sim/signs';
-import type { Animal, BowState, HitZone, WorldState } from '../src/sim/state';
+import type { Animal, HitZone, WorldState } from '../src/sim/state';
 import { step } from '../src/sim/world';
 import { CENTRE, lone } from './helpers';
 
@@ -94,46 +97,70 @@ describe('where the arrow goes', () => {
     expect(counts.bone ?? 0).toBeGreaterThan(50);
   });
 
-  it('the reticle settles, and grows with distance and a moving target', () => {
-    const bow: BowState = {
-      target: 1,
-      drawnAt: 0,
-      aimU: 0,
-      aimV: 0.5,
-      breathAt: 0,
-      breathOutAt: 0,
-    };
-    expect(reticleSigma(bow, 30, 20, false, 0)).toBeLessThan(reticleSigma(bow, 0, 20, false, 0));
-    expect(reticleSigma(bow, 30, 40, false, 0)).toBeGreaterThan(
-      reticleSigma(bow, 30, 20, false, 0),
-    );
-    expect(reticleSigma(bow, 30, 20, false, 9)).toBeGreaterThan(
-      reticleSigma(bow, 30, 20, false, 0),
-    );
-    const held = { ...bow, breathAt: 25 };
-    expect(reticleSigma(held, 30, 20, false, 0)).toBeLessThan(reticleSigma(bow, 30, 20, false, 0));
+  it('scatter grows with distance and a moving target, and practice tightens it', () => {
+    expect(scatter(40, 0, 0)).toBeGreaterThan(scatter(20, 0, 0));
+    expect(scatter(20, 9, 0)).toBeGreaterThan(scatter(20, 0, 0));
+    expect(scatter(20, 0, 5)).toBeCloseTo(0.8 * scatter(20, 0, 0));
   });
 
-  it('the bow keeps real-time timings: settling, a held breath and tiring arms', () => {
+  it('the aim drifts in real time: settling, a held breath, shaking and tiring arms', () => {
     const sec = GAME_SECONDS_PER_REAL_SECOND;
-    const bow: BowState = {
+    const input: SwayInput = {
       target: 1,
       drawnAt: 0,
-      aimU: 0,
-      aimV: 0.5,
       breathAt: 0,
       breathOutAt: 0,
+      distance: 20,
+      moving: false,
+      bowXp: 0,
     };
-    const sigma = (b: BowState, realS: number) => reticleSigma(b, realS * sec, 20, false, 0);
+    const wobble = (i: SwayInput, realS: number) => {
+      const s = sway(i, realS * sec);
+      return s.drift + s.tremor;
+    };
     // Settled within about three seconds, and steady for ten.
-    expect(sigma(bow, 3)).toBeLessThan(0.5 * sigma(bow, 0));
-    expect(sigma(bow, 10)).toBeLessThanOrEqual(sigma(bow, 3));
-    // Tired arms after twelve seconds.
-    expect(sigma(bow, 20)).toBeGreaterThan(sigma(bow, 10));
+    expect(wobble(input, 3)).toBeLessThan(0.5 * wobble(input, 0));
+    expect(wobble(input, 10)).toBeLessThanOrEqual(wobble(input, 3));
+    // Tired arms after twelve seconds, with a tremor.
+    expect(wobble(input, 20)).toBeGreaterThan(wobble(input, 10));
+    expect(sway(input, 20 * sec).tremor).toBeGreaterThan(0);
     // A breath taken at 3 s steadies you until 8 s, then you shake.
-    const held = { ...bow, breathAt: 3 * sec };
-    expect(sigma(held, 7.5)).toBeLessThan(sigma(bow, 7.5));
-    expect(sigma(held, 10)).toBeGreaterThan(sigma(bow, 10));
+    const held = { ...input, breathAt: 3 * sec };
+    expect(wobble(held, 7.5)).toBeLessThan(0.6 * wobble(input, 7.5));
+    expect(sway(held, 7.5 * sec).tremor).toBe(0);
+    expect(sway(held, 10 * sec).tremor).toBeGreaterThan(0);
+    expect(wobble(held, 10)).toBeGreaterThan(wobble(input, 10));
+  });
+
+  it('the drift moves smoothly, stays within its size, and practice calms it', () => {
+    const sec = GAME_SECONDS_PER_REAL_SECOND;
+    const input: SwayInput = {
+      target: 3,
+      drawnAt: 1000,
+      breathAt: 0,
+      breathOutAt: 0,
+      distance: 30,
+      moving: false,
+      bowXp: 0,
+    };
+    let prev = sway(input, 1000 + 5 * sec);
+    for (let t = 5; t < 11; t += 0.1) {
+      const s = sway(input, 1000 + t * sec);
+      expect(Math.abs(s.u)).toBeLessThanOrEqual(1.05 * s.drift + s.tremor);
+      expect(Math.abs(s.v)).toBeLessThanOrEqual(1.0 * s.drift + s.tremor);
+      // No jumps: a tenth of a second moves it by well under its size.
+      expect(Math.hypot(s.u - prev.u, s.v - prev.v)).toBeLessThan(0.5 * s.drift);
+      prev = s;
+    }
+    const practised = sway({ ...input, bowXp: 5 }, 1000 + 6 * sec);
+    expect(practised.drift).toBeCloseTo(0.8 * sway(input, 1000 + 6 * sec).drift);
+  });
+
+  it('every shot is practice for the bow arm', () => {
+    const { world, a } = setUp();
+    const before = world.player.knowledge.hands.bow;
+    shoot(world, a, 'lungs');
+    expect(world.player.knowledge.hands.bow).toBeGreaterThan(before);
   });
 });
 
@@ -160,19 +187,19 @@ function setUp(): { world: WorldState; a: Animal } {
 function shoot(world: WorldState, a: Animal, organ: PartId): void {
   step(world, [{ type: 'draw', target: a.id }], 6);
   expect(world.player.bow).not.toBeNull();
-  // Settle for three real seconds, then aim where that organ is from here.
+  // Settle for three real seconds, hold your breath and let it calm you.
   for (let t = 0; t < 3 * GAME_SECONDS_PER_REAL_SECOND; t += 6) step(world, [], 6);
-  const theta = relativeAngle(a.heading, world.player.x, world.player.y, a.x, a.y);
+  step(world, [{ type: 'breath', hold: true }], 6);
+  for (let i = 0; i < 6; i++) step(world, [], 6);
+  // Aim at the organ, allowing for where the drift has the bow right now.
+  const bow = world.player.bow;
+  if (!bow) throw new Error('bow let down');
+  const p = world.player;
+  const d = Math.hypot(a.x - p.x, a.y - p.y);
+  const drift = sway(swayInput(bow, d, false, p.knowledge.hands.bow), world.time);
+  const theta = relativeAngle(a.heading, p.x, p.y, a.x, a.y);
   const { u, v } = centreOf(organ, theta);
-  step(
-    world,
-    [
-      { type: 'aim', u, v },
-      { type: 'breath', hold: true },
-    ],
-    6,
-  );
-  step(world, [{ type: 'release' }], 6);
+  step(world, [{ type: 'aim', u: u - drift.u, v: v - drift.v }, { type: 'release' }], 6);
 }
 
 function runUntilDead(world: WorldState, a: Animal, steps: number): void {

@@ -51,8 +51,14 @@ export function Journal() {
             <Bar {...v} />
           </div>
         ))}
+      <div class="journal-section">Hands</div>
+      <div class="journal-row">
+        <span>Bow arm</span>
+        <Bar {...k.hands.bow} />
+      </div>
       <p class="card-meta">
-        Reading signs teaches a little. Seeing the animal whose trail you read teaches a lot.
+        Reading signs teaches a little. Seeing the animal whose trail you read teaches a lot. Every
+        arrow you loose steadies your bow arm a little.
       </p>
     </div>
   );

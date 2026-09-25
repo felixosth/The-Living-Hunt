@@ -48,7 +48,12 @@ const SIGN_WORDS: Record<string, string> = {
   blood: 'blood',
 };
 
-export function describeLearning(area: 'species' | 'signs', key: string, level: number): string {
+export function describeLearning(
+  area: 'species' | 'signs' | 'hands',
+  key: string,
+  level: number,
+): string {
+  if (area === 'hands') return `Practice tells: your bow arm is steadier (level ${level}).`;
   if (area === 'species') {
     const name = SPECIES[key as keyof typeof SPECIES]?.plural ?? key;
     return `You understand ${name} better (level ${level}).`;

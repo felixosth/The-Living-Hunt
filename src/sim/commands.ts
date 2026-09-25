@@ -19,7 +19,11 @@ export type Command =
   /** Move the aim point on the shot inset (metres right of centre, height). */
   | { type: 'aim'; u: number; v: number }
   | { type: 'breath'; hold: boolean }
-  | { type: 'release' }
+  /**
+   * Loose the arrow. `lead` is how long after the last tick the click came,
+   * in real seconds, so the shot goes where the aim was when you clicked.
+   */
+  | { type: 'release'; lead?: number }
   | { type: 'lower' }
   /** The context action: dress, pick up, put down, bring home. */
   | { type: 'interact' }
@@ -53,7 +57,7 @@ export function applyCommand(state: WorldState, command: Command, events: SimEve
       breath(state, command.hold === true);
       return;
     case 'release':
-      release(state, getRegionMap(state.seed, state.regionId), events);
+      release(state, getRegionMap(state.seed, state.regionId), events, command.lead ?? 0);
       return;
     case 'lower':
       lower(state);

@@ -7,7 +7,9 @@ import { bodyCentre } from '../content/anatomy';
 import { BloodType } from '../content/blood';
 import { CARRY_CAPACITY_KG } from '../content/gear';
 import { SPECIES } from '../content/species';
+import { clamp } from '../core/math';
 import { chance, nextRange } from '../core/rng';
+import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
 import { animalContext, applyHit, SUSPICIOUS } from './animals';
 import type { SimEvent } from './events';
 import { learn, lesson } from './knowledge';
@@ -19,8 +21,11 @@ import {
   canHoldBreath,
   castArrow,
   gaussian,
+  MAX_RELEASE_LEAD_S,
   relativeAngle,
-  reticleSigma,
+  scatter,
+  sway,
+  swayInput,
 } from './shot';
 import { addSign, removeSign, SIGN_LIFETIME_H, SignKind } from './signs';
 import type { Animal, HuntRecord, HuntSummary, PlayerState, WorldState } from './state';
@@ -121,7 +126,7 @@ export function lower(state: WorldState): void {
 }
 
 /** Loose the arrow. The reticle decides where it strikes; the anatomy decides what that means. */
-export function release(state: WorldState, map: RegionMap, events: SimEvent[]): void {
+export function release(state: WorldState, map: RegionMap, events: SimEvent[], lead = 0): void {
   const p = state.player;
   const bow = p.bow;
   if (!bow) return;
@@ -132,15 +137,21 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[]): 
   const d = Math.hypot(a.x - p.x, a.y - p.y);
   const theta = relativeAngle(a.heading, p.x, p.y, a.x, a.y);
   const moving = p.moveX !== 0 || p.moveY !== 0;
-  const sigma = reticleSigma(bow, state.time, d, moving, a.speed);
-  const u = bow.aimU + gaussian(rng) * sigma;
-  const v = bow.aimV + gaussian(rng) * sigma;
+  // The arrow goes where the drifting aim was at the click, plus a scatter you can't time.
+  const at = state.time + clamp(lead, 0, MAX_RELEASE_LEAD_S) * GAME_SECONDS_PER_REAL_SECOND;
+  const drift = sway(swayInput(bow, d, moving, p.knowledge.hands.bow), at);
+  const sigma = scatter(d, a.speed, p.knowledge.hands.bow);
+  const u = bow.aimU + drift.u + gaussian(rng) * sigma;
+  const v = bow.aimV + drift.v + gaussian(rng) * sigma;
   // Twigs and branches in the way can turn an arrow.
   const brush = sightlineObstruction(map, p.x, p.y, a.x, a.y);
   const result = chance(rng, brush * 0.9)
     ? { zone: 'miss' as const, passThrough: true, tainted: false }
     : castArrow(a.species, theta, u, v, rng, isHeadDown(a));
   p.arrows--;
+  // Every shot is practice; a clean one teaches more.
+  const clean = result.zone === 'heart' || result.zone === 'lungs';
+  learn(p.knowledge, 'hands', 'bow', lesson(clean ? 0.25 : 0.15, p.knowledge.hands.bow), events);
 
   const r = record(p, a.id);
   r.shotAt = state.time;

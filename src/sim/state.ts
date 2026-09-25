@@ -17,7 +17,7 @@ import type { SignStore } from './signs';
  * Version of the WorldState shape. Bump it whenever the shape changes, and add
  * a migration in src/persistence/migrations.ts.
  */
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 export type Gait = 'sneak' | 'walk' | 'run';
 export const GAITS: readonly Gait[] = ['sneak', 'walk', 'run'];
