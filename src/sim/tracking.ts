@@ -149,6 +149,19 @@ function advanceFollow(
 ): void {
   const f = player.follow;
   if (!f) return;
+  // Signs you had already found between the last one and this belong to the
+  // stretch you've followed too, even though following went past them.
+  const t = signs.t[i] as number;
+  const id = signs.id[i] as number;
+  for (let j = 0; j < signs.count; j++) {
+    if (signs.animal[j] !== f.animal || !isTrailSign(signs.kind[j] as number)) continue;
+    if (!((signs.flags[j] as number) & SignFlag.Noticed)) continue;
+    const tj = signs.t[j] as number;
+    const idj = signs.id[j] as number;
+    const afterLast = tj > f.lastT || (tj === f.lastT && idj > f.lastId);
+    const beforeThis = tj < t || (tj === t && idj < id);
+    if (afterLast && beforeThis) setFlag(signs, j, SignFlag.Followed);
+  }
   f.lastT = signs.t[i] as number;
   f.lastId = signs.id[i] as number;
   f.x = signs.x[i] as number;

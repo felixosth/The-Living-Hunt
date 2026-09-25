@@ -221,8 +221,9 @@ export function removeSign(store: SignStore, i: number): void {
   store.revision++;
 }
 
+/** Set `flag` (one or more bits) on a sign. */
 export function setFlag(store: SignStore, i: number, flag: number): void {
-  if (((store.flags[i] as number) & flag) === 0) {
+  if (((store.flags[i] as number) & flag) !== flag) {
     store.flags[i] = (store.flags[i] as number) | flag;
     store.revision++;
   }

@@ -14,6 +14,7 @@ import {
   type SignRecord,
   signAt,
 } from '../src/sim/signs';
+import { makeSnapshot } from '../src/sim/snapshot';
 import type { WorldState } from '../src/sim/state';
 import { createWorld, step } from '../src/sim/world';
 
@@ -367,6 +368,46 @@ describe('scanning, reading and following', () => {
       (id) => (signs.flags[findSign(signs, id)] as number) & SignFlag.Followed,
     );
     expect(followed.length).toBeGreaterThan(2);
+  });
+
+  it('while following, every found sign of that animal stays clear and the stretch walked is marked', () => {
+    const world = createWorld(1);
+    const { signs, player } = world;
+    const x0 = player.x;
+    const y0 = player.y;
+    const drops: number[] = [];
+    for (let k = 0; k < 10; k++) {
+      addSign(signs, {
+        kind: SignKind.Blood,
+        species: 'roe',
+        animal: 999,
+        x: x0 + 2 * k,
+        y: y0,
+        t: world.time - 600 + 6 * k,
+        heading: 0,
+        detail: 1,
+        weight: 22,
+        integrity: 1,
+        lifetimeH: 48,
+      });
+      drops.push(signs.id[signs.count - 1] as number);
+    }
+    // You've already seen the whole trail, and start following from its third drop.
+    for (const id of drops) signs.flags[findSign(signs, id)] = SignFlag.Noticed;
+    step(world, [{ type: 'follow', signId: drops[2] as number }], 6);
+    const view = makeSnapshot(world).signs;
+    const mine = view.filter((s) => drops.includes(s.id));
+    expect(mine.every((s) => s.onTrail)).toBe(true);
+    expect(view.filter((s) => !drops.includes(s.id)).some((s) => s.onTrail)).toBe(false);
+    // Walk to the end: every drop from the third on is marked, jumped over or not.
+    for (let k = 2; k < 10; k++) {
+      player.x = x0 + 2 * k;
+      for (let n = 0; n < 3; n++) step(world, [], 6);
+    }
+    expect(player.follow?.lastId).toBe(drops[9]);
+    const marked = (id: number) =>
+      ((signs.flags[findSign(signs, id)] as number) & SignFlag.Followed) !== 0;
+    expect(drops.slice(2).every(marked)).toBe(true);
   });
 
   it('seeing the animal whose sign you read confirms it', () => {

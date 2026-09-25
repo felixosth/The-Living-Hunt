@@ -66,7 +66,10 @@ export interface SignView {
   integrity: number;
   /** Blood type for blood (its colour is plain to see), otherwise 0. */
   blood: number;
+  /** On the stretch of trail you have followed. */
   followed: boolean;
+  /** Left by the animal whose trail you are following. */
+  onTrail: boolean;
   inspected: boolean;
 }
 
@@ -206,7 +209,7 @@ function knowledgeView(k: Knowledge): KnowledgeView {
   };
 }
 
-function noticedSigns(store: SignStore): SignView[] {
+function noticedSigns(store: SignStore, following: number | null): SignView[] {
   const out: SignView[] = [];
   for (let i = 0; i < store.count; i++) {
     const flags = store.flags[i] as number;
@@ -221,6 +224,7 @@ function noticedSigns(store: SignStore): SignView[] {
       integrity: store.integrity[i] as number,
       blood: store.kind[i] === SignKind.Blood ? (store.detail[i] as number) : 0,
       followed: (flags & SignFlag.Followed) !== 0,
+      onTrail: following !== null && store.animal[i] === following,
       inspected: (flags & SignFlag.Inspected) !== 0,
     });
   }
@@ -301,7 +305,7 @@ export function makeSnapshot(
     animals: state.animals
       .filter((a) => (a.seen || godView) && a.id !== player.carrying)
       .map((a) => viewAnimal(a, godView)),
-    signs: noticedSigns(state.signs),
+    signs: noticedSigns(state.signs, state.player.follow?.animal ?? null),
     signsRevision: state.signs.revision,
     tracking: {
       searching: searchPosture(player),

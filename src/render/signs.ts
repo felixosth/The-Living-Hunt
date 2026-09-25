@@ -174,7 +174,7 @@ export class SignLayer {
         const fade = Math.min(1, (now - seenAt) / FADE_IN_MS);
         if (fade < 1) this.fading = true;
         // While following a trail, other animals' signs step back.
-        const dim = following && !sign.followed ? 0.35 : 1;
+        const dim = following && !sign.onTrail ? 0.35 : 1;
         drawGlyph(this.glyphs, sign, fade * dim);
       }
       this.revisionsSeen++;
