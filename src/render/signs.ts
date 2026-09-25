@@ -84,7 +84,7 @@ function drawGlyph(g: Graphics, s: SignView, visibility: number): void {
     }
     case 'blood': {
       const color =
-        s.blood === BloodType.Bright || s.blood === BloodType.Frothy
+        s.blood === BloodType.Bright || s.blood === BloodType.Frothy || s.blood === BloodType.Bone
           ? COLORS.bloodBright
           : COLORS.bloodDark;
       for (let k = 0; k < 3; k++) {
@@ -94,6 +94,13 @@ function drawGlyph(g: Graphics, s: SignView, visibility: number): void {
           (s.y + G * Math.sin(a) * 0.14 * k) * PX,
           G * (0.1 - 0.02 * k) * PX,
         ).fill({ color, alpha });
+      }
+      if (s.blood === BloodType.Bone) {
+        // A pale chip of bone.
+        g.poly([...at(0.16, -0.1), ...at(0.24, -0.06), ...at(0.2, 0.01)]).fill({
+          color: COLORS.signHalo,
+          alpha,
+        });
       }
       if (s.blood === BloodType.Gut) {
         g.circle((s.x + 0.12 * G) * PX, (s.y - 0.1 * G) * PX, 0.06 * G * PX).fill({

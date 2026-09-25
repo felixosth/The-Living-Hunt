@@ -16,6 +16,8 @@ export const BloodType = {
   Sparse: 5,
   /** Glancing hit on bone: a smear, a little hair. */
   Graze: 6,
+  /** Arrow stopped in the shoulder blade: bright blood with bone chips, drying up. */
+  Bone: 7,
 } as const;
 export type BloodType = (typeof BloodType)[keyof typeof BloodType];
 
@@ -58,5 +60,10 @@ export const BLOOD_LORE: Record<Exclude<BloodType, 0>, BloodLore> = {
     looks: 'A smear of blood and some cut hair',
     means: 'a glancing hit',
     advice: 'Barely a wound. It will live.',
+  },
+  [BloodType.Bone]: {
+    looks: 'Bright red blood, with a chip of bone',
+    means: 'the arrow struck the shoulder blade and stopped there',
+    advice: 'It will likely live. Follow while the blood lasts; it will dry up.',
   },
 };

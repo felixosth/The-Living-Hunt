@@ -955,10 +955,11 @@ const WOUND_RULES: Record<Exclude<HitZone, 'spine' | 'miss'>, WoundRule> = {
     survive: 1,
     speed: 0.8,
   },
+  // Stopped in the shoulder blade: a good trail at first that thins out and dries up.
   bone: {
-    blood: BloodType.Graze,
-    bleed: 0.12,
-    bleedFor: 10 * 60,
+    blood: BloodType.Bone,
+    bleed: 0.6,
+    bleedFor: 8 * 60,
     flee: [150, 300],
     survive: 1,
     speed: 1,
@@ -1017,6 +1018,12 @@ export function applyHit(
   a.awareness = 1;
   a.wariness = 1;
   addHitSign(a, ctx, rule.blood);
+  if (zone === 'bone') {
+    // Bone takes the blow: a real splash where it stood, not a single drop.
+    for (let k = 0; k < 2; k++) {
+      addHitSign(a, ctx, rule.blood, true, nextRange(rng, -0.6, 0.6), nextRange(rng, -0.6, 0.6));
+    }
+  }
   if (a.species === 'roe') emitSound(ctx, 'crash', a);
   else emitSound(ctx, 'flush', a);
   alertMates(a, ctx);
@@ -1051,13 +1058,13 @@ function newWound(
  * Blood and cut hair where the arrow struck, or a pool where it lay down.
  * Struck, it splashes the way it bolts: away from you.
  */
-function addHitSign(a: Animal, ctx: Ctx, blood: BloodType, struck = true): void {
+function addHitSign(a: Animal, ctx: Ctx, blood: BloodType, struck = true, dx = 0, dy = 0): void {
   addSign(ctx.state.signs, {
     kind: SignKind.Blood,
     species: a.species,
     animal: a.id,
-    x: a.x,
-    y: a.y,
+    x: a.x + dx,
+    y: a.y + dy,
     t: ctx.now,
     heading: struck ? fleeHeading(a, ctx.map) : a.heading,
     detail: blood,

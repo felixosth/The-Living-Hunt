@@ -295,6 +295,8 @@ function bloodOnArrow(zone: string): number {
       return BloodType.Gut;
     case 'muscle':
       return BloodType.Sparse;
+    case 'bone':
+      return BloodType.Bone;
     default:
       return BloodType.Graze;
   }

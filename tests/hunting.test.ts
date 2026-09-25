@@ -5,6 +5,7 @@ import { GAME_SECONDS_PER_REAL_SECOND } from '../src/core/time';
 import { animalContext, applyHit } from '../src/sim/animals';
 import type { MissReview, SimEvent } from '../src/sim/events';
 import { shotRng } from '../src/sim/hunting';
+import { readSign } from '../src/sim/reading';
 import { getRegionMap } from '../src/sim/region';
 import {
   angleName,
@@ -20,7 +21,7 @@ import {
   swayInput,
   travelDuringFlight,
 } from '../src/sim/shot';
-import { SignKind } from '../src/sim/signs';
+import { SignKind, signAt } from '../src/sim/signs';
 import type { Animal, HitZone, WorldState } from '../src/sim/state';
 import { step } from '../src/sim/world';
 import { CENTRE, lone } from './helpers';
@@ -457,6 +458,34 @@ describe('a hunt, start to finish', () => {
     world.player.y = 5;
     runUntilDead(world, a, 5 * 60);
     expect(a.activity).toBe('dead');
+  });
+
+  it('a shoulder-blade hit bleeds well at first, then dries up, and reads as bone', () => {
+    const { world, a } = setUp();
+    const map = getRegionMap(world.seed, world.regionId);
+    applyHit(a, animalContext(world, map, []), 'bone', false, true, world.player.x, world.player.y);
+    const hitX = a.x;
+    const hitY = a.y;
+    for (let i = 0; i < 300; i++) step(world, [], 6);
+    let near = 0;
+    let far = 0;
+    let hitSign = -1;
+    for (let i = 0; i < world.signs.count; i++) {
+      if (world.signs.kind[i] !== SignKind.Blood || world.signs.animal[i] !== a.id) continue;
+      const d = Math.hypot(
+        (world.signs.x[i] as number) - hitX,
+        (world.signs.y[i] as number) - hitY,
+      );
+      if (d < 1) hitSign = i;
+      else if (d < 100) near++;
+      else if (d > 200) far++;
+    }
+    // A trail to follow for the first stretch, and nothing by the end.
+    expect(near).toBeGreaterThan(10);
+    expect(far).toBe(0);
+    expect(a.activity).not.toBe('dead');
+    const reading = readSign(signAt(world.signs, hitSign), world.player.knowledge, world.time);
+    expect(reading.lines.join(' ')).toContain('bone');
   });
 
   it('dress it, carry it home and get a summary', () => {
