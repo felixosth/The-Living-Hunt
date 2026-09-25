@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ANATOMY, type PartId } from '../src/content/anatomy';
-import { seedRng } from '../src/core/rng';
+import { nextFloat, seedRng } from '../src/core/rng';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../src/core/time';
 import { animalContext, applyHit } from '../src/sim/animals';
 import type { MissReview, SimEvent } from '../src/sim/events';
+import { shotRng } from '../src/sim/hunting';
 import { getRegionMap } from '../src/sim/region';
 import {
   angleName,
@@ -311,6 +312,20 @@ describe('where the arrow goes', () => {
     expect(causes).toContain('jumped');
   });
 
+  it('the luck of a shot depends on the moment you loose it, not just the seed', () => {
+    const { world } = setUp();
+    const roll = (dt: number, lead: number) => {
+      const w = structuredClone(world);
+      w.time += dt;
+      return nextFloat(shotRng(w, lead));
+    };
+    // The same moment rolls the same (replays and saves stay exact)...
+    expect(roll(0, 0)).toBe(roll(0, 0));
+    // ...but a moment later, or later in the tick, rolls differently.
+    const rolls = new Set([roll(0, 0), roll(6, 0), roll(12, 0), roll(0, 0.05), roll(0, 0.1)]);
+    expect(rolls.size).toBe(5);
+  });
+
   it('every shot is practice for the bow arm', () => {
     const { world, a } = setUp();
     const before = world.player.knowledge.hands.bow;
@@ -368,7 +383,7 @@ function shoot(
   const d = Math.hypot(a.x - p.x, a.y - p.y);
   const drift = sway(swayInput(bow, d, false, p.knowledge.hands.bow), world.time);
   const theta = relativeAngle(a.heading, p.x, p.y, a.x, a.y);
-  const { u, v } = at ?? centreOf(organ, theta);
+  const { u, v } = at ?? clearOfShoulder(organ, theta);
   a.speed = walking;
   if (edge !== undefined) a.awareness = edge;
   const ahead = lead ? travelDuringFlight(walking, d, theta) : 0;
@@ -377,6 +392,21 @@ function shoot(
     [{ type: 'aim', u: u - drift.u - ahead, v: v - drift.v }, { type: 'release' }],
     6,
   );
+}
+
+/**
+ * Where a careful hunter aims for an organ: its centre, except the heart and
+ * lungs, whose centres sit at the edge of the shoulder blade on a broadside
+ * deer. Those are aimed a little behind and below it.
+ */
+function clearOfShoulder(organ: PartId, theta: number): { u: number; v: number } {
+  const body: Partial<Record<PartId, [number, number]>> = {
+    lungs: [0.12, 0.56],
+    heart: [0.25, 0.45],
+  };
+  const at = body[organ];
+  if (!at) return centreOf(organ, theta);
+  return { u: at[0] * Math.sin(theta), v: at[1] };
 }
 
 function missOf(events: SimEvent[]): MissReview | null {

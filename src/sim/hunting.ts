@@ -7,8 +7,9 @@ import { bodyCentre } from '../content/anatomy';
 import { BloodType } from '../content/blood';
 import { CARRY_CAPACITY_KG } from '../content/gear';
 import { SPECIES } from '../content/species';
+import { hash32 } from '../core/hash';
 import { clamp } from '../core/math';
-import { chance, nextRange } from '../core/rng';
+import { chance, nextRange, nextU32, type RngState, seedRng } from '../core/rng';
 import { GAME_SECONDS_PER_REAL_SECOND } from '../core/time';
 import { animalContext, applyHit, hearBleat, SUSPICIOUS } from './animals';
 import type { MissCause, MissReview, SimEvent } from './events';
@@ -143,6 +144,18 @@ export function lower(state: WorldState): void {
   state.player.bow = null;
 }
 
+/**
+ * The luck of one shot. Drawn straight from the combat stream, the first shot
+ * of a world always rolled the same numbers, whenever and however you shot,
+ * so a seed could turn its first arrow on a twig every time. Mixing in the
+ * moment of release (game time and where in the tick you clicked) keeps it
+ * deterministic for the same commands, but different for a different moment.
+ */
+export function shotRng(state: WorldState, lead: number): RngState {
+  const within = Math.round(clamp(lead, 0, MAX_RELEASE_LEAD_S) * 1000);
+  return seedRng(hash32(nextU32(state.rng.combat), state.time, within));
+}
+
 /** Loose the arrow. The reticle decides where it strikes; the anatomy decides what that means. */
 export function release(state: WorldState, map: RegionMap, events: SimEvent[], lead = 0): void {
   const p = state.player;
@@ -151,7 +164,7 @@ export function release(state: WorldState, map: RegionMap, events: SimEvent[], l
   p.bow = null;
   const a = animalById(state, bow.target);
   if (!a || a.activity === 'dead' || p.arrows <= 0) return;
-  const rng = state.rng.combat;
+  const rng = shotRng(state, lead);
   const d = Math.hypot(a.x - p.x, a.y - p.y);
   const theta = relativeAngle(a.heading, p.x, p.y, a.x, a.y);
   const moving = p.moveX !== 0 || p.moveY !== 0;
