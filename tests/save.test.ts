@@ -80,3 +80,25 @@ describe('save slots (IndexedDB)', () => {
     expect(await readSlot('quicksave')).toBeUndefined();
   });
 });
+
+describe('save migrations', () => {
+  it('upgrades an M0 (version 1) save by populating the forest', async () => {
+    const world = createWorld(4);
+    const v1 = {
+      seed: world.seed,
+      time: world.time + 3600,
+      tick: 42,
+      rng: world.rng,
+      regionId: world.regionId,
+      weather: world.weather,
+      player: { ...world.player, x: world.player.x + 3 },
+    };
+    const envelope = { format: SAVE_FORMAT, version: 1, savedAt: '', state: v1 };
+    const loaded = await decodeSave(await gzipText(serialize(envelope)));
+    expect(loaded.time).toBe(v1.time);
+    expect(loaded.tick).toBe(42);
+    expect(loaded.player.x).toBe(v1.player.x);
+    expect(loaded.animals.length).toBeGreaterThan(5);
+    expect(() => step(loaded, [], 600)).not.toThrow();
+  });
+});

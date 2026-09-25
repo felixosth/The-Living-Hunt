@@ -71,6 +71,8 @@ export function assertWorldState(value: unknown): asserts value is WorldState {
     Number.isFinite(s.player?.x) &&
     Number.isFinite(s.player?.y) &&
     typeof s.weather === 'object' &&
+    Array.isArray(s.animals) &&
+    s.scentTrail instanceof Uint32Array &&
     typeof s.rng === 'object' &&
     RNG_STREAMS.every((name) => Array.isArray(s.rng?.[name]) && s.rng[name].length === 4);
   if (!ok) throw new SaveError('The save file is missing parts of the world.');

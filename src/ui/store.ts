@@ -50,3 +50,20 @@ export function showToast(text: string, kind: Toast['kind'] = 'info'): void {
     kind === 'error' ? 6000 : 2500,
   );
 }
+
+export interface Notice {
+  id: number;
+  text: string;
+}
+
+/** Things the player hears or notices, newest last. */
+export const notices = signal<Notice[]>([]);
+
+let noticeId = 0;
+export function addNotice(text: string): void {
+  const id = ++noticeId;
+  notices.value = [...notices.value.slice(-3), { id, text }];
+  setTimeout(() => {
+    notices.value = notices.value.filter((n) => n.id !== id);
+  }, 8000);
+}

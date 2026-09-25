@@ -233,6 +233,41 @@ kbd {
   color: var(--accent);
 }
 
+.notices {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.notice {
+  font-style: italic;
+  color: var(--ink);
+  text-shadow:
+    0 1px 3px #000,
+    0 0 8px #000;
+  animation: notice-fade 8s ease-out forwards;
+}
+
+@keyframes notice-fade {
+  0% {
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .toast {
   bottom: 48px;
   right: 12px;

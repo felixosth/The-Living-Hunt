@@ -23,6 +23,7 @@ import { hash32 } from '../core/hash';
 import { clamp, lerp, lerpAngle } from '../core/math';
 import type { RegionMap } from '../sim/region';
 import type { Snapshot } from '../sim/snapshot';
+import { AnimalLayer } from './animals';
 import { COLORS, TERRAIN_RGB } from './palette';
 
 extensions.add(CullerPlugin);
@@ -59,7 +60,9 @@ export class Renderer {
   private canopyLayer = new Container();
   private player = new Container();
   private debug = new Graphics();
-  private zoom = 0.9;
+  private animals: AnimalLayer;
+  private map: RegionMap | null = null;
+  private zoom = 0.55;
   private godView = false;
   private regionKey = '';
   private canopyTextures: Texture[] = [];
@@ -75,6 +78,7 @@ export class Renderer {
     this.overlay.addChild(this.debug);
     app.stage.addChild(this.world, this.overlay);
     this.player.addChild(drawPlayer());
+    this.animals = new AnimalLayer(this.agentLayer, this.overlay);
     this.canopyTextures = COLORS.canopy.map((color) => canopyTexture(app, color));
   }
 
@@ -97,6 +101,8 @@ export class Renderer {
     const key = `${seed}:${map.id}`;
     if (key === this.regionKey) return;
     this.regionKey = key;
+    this.map = map;
+    this.animals.clear();
     for (const child of this.groundLayer.removeChildren())
       child.destroy({ texture: true, textureSource: true });
     for (const child of this.shadowLayer.removeChildren()) child.destroy();
@@ -133,7 +139,8 @@ export class Renderer {
       layer.position.set(width / 2 - x * this.zoom, height / 2 - y * this.zoom);
     }
 
-    this.fadeCanopies(pxM, pyM);
+    const seen = this.animals.update(prev, curr, alpha, this.zoom);
+    this.fadeCanopies([{ x: pxM, y: pyM }, ...seen]);
     this.drawDebug(curr);
 
     // Darken by tinting the whole world (a multiply), not with an overlay pass.
@@ -196,9 +203,15 @@ export class Renderer {
     return this.chunks[cy * this.chunkCols + cx];
   }
 
-  /** Fade canopies over the player so you can always see yourself and what's near. */
-  private fadeCanopies(px: number, py: number): void {
+  /** Fade canopies over the player and the animals in view, so you can always see them. */
+  private fadeCanopies(points: { x: number; y: number }[]): void {
     const stillFaded = new Set<Sprite>();
+    for (const { x: px, y: py } of points) this.fadeAround(px, py, stillFaded);
+    for (const sprite of this.faded) if (!stillFaded.has(sprite)) sprite.alpha = 1;
+    this.faded = stillFaded;
+  }
+
+  private fadeAround(px: number, py: number, stillFaded: Set<Sprite>): void {
     // Largest canopy radius is under 3 m.
     const reach = 3 + CANOPY_FADE_M;
     const cx0 = Math.max(0, Math.floor((px - reach) / TREE_CHUNK_M));
@@ -216,19 +229,26 @@ export class Renderer {
           if (edge > CANOPY_FADE_M) continue;
           const sprite = chunk.sprites[i] as Sprite;
           const t = clamp(edge / CANOPY_FADE_M, 0, 1);
-          sprite.alpha = lerp(CANOPY_FADED_ALPHA, 1, t * t);
+          const alpha = lerp(CANOPY_FADED_ALPHA, 1, t * t);
+          sprite.alpha = stillFaded.has(sprite) ? Math.min(sprite.alpha, alpha) : alpha;
           stillFaded.add(sprite);
         }
       }
     }
-    for (const sprite of this.faded) if (!stillFaded.has(sprite)) sprite.alpha = 1;
-    this.faded = stillFaded;
   }
 
   private drawDebug(s: Snapshot): void {
     const g = this.debug;
     g.clear();
     if (!this.godView) return;
+    // Points of interest.
+    for (const poi of this.map?.pois ?? []) {
+      g.circle(poi.x * PX_PER_M, poi.y * PX_PER_M, poi.radius * PX_PER_M).stroke({
+        width: 2 / this.zoom,
+        color: COLORS.poi[poi.kind],
+        alpha: 0.8,
+      });
+    }
     const px = s.player.x * PX_PER_M;
     const py = s.player.y * PX_PER_M;
     // Scent cone.
@@ -242,6 +262,26 @@ export class Renderer {
         .lineTo(px, py)
         .fill({ color: COLORS.scent, alpha: 0.14 })
         .stroke({ width: 1.5 / this.zoom, color: COLORS.scent, alpha: 0.5 });
+    }
+    // Every animal as a dot that stays visible at any zoom, with a line to where it's heading.
+    for (const a of s.animals) {
+      const ax = a.x * PX_PER_M;
+      const ay = a.y * PX_PER_M;
+      const goal = a.debug ? this.map?.pois[a.debug.goal] : undefined;
+      if (goal && a.activity === 'travelling') {
+        g.moveTo(ax, ay)
+          .lineTo(goal.x * PX_PER_M, goal.y * PX_PER_M)
+          .stroke({ width: 1 / this.zoom, color: COLORS.poi[goal.kind], alpha: 0.5 });
+      }
+      const ring =
+        a.alertness === 'unaware'
+          ? COLORS.eyeCalm
+          : a.alertness === 'suspicious'
+            ? COLORS.eyeSuspicious
+            : COLORS.eyeAlarmed;
+      g.circle(ax, ay, 4 / this.zoom)
+        .fill({ color: a.species === 'roe' ? COLORS.roe : COLORS.hare })
+        .stroke({ width: 2 / this.zoom, color: ring });
     }
     // Noise radius.
     if (s.player.noiseRadius > 0) {
@@ -414,8 +454,8 @@ function drawCabin(map: RegionMap): Graphics {
 }
 
 function drawPlayer(): Graphics {
-  // Drawn larger than life (0.8 m radius) so the player stays easy to find.
-  const r = 0.8 * PX_PER_M;
+  // Drawn larger than life (1 m radius) so the player stays easy to find.
+  const r = 1 * PX_PER_M;
   return new Graphics()
     .circle(r * 0.3, r * 0.3, r)
     .fill({ color: COLORS.shadow, alpha: 0.3 })

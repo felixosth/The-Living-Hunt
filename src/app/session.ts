@@ -24,11 +24,13 @@ export class GameSession {
   curr: Snapshot;
   timeScale: TimeScale = 1;
   paused = false;
+  /** Publish hidden animals and debug data in snapshots. */
+  godView = false;
   private pending: Command[] = [];
 
   constructor(state: WorldState) {
     this.state = state;
-    this.curr = makeSnapshot(state);
+    this.curr = this.snapshot();
     this.prev = this.curr;
   }
 
@@ -54,7 +56,7 @@ export class GameSession {
       remaining -= dt;
     }
     this.prev = this.curr;
-    this.curr = makeSnapshot(this.state);
+    this.curr = this.snapshot();
     return events;
   }
 
@@ -62,7 +64,11 @@ export class GameSession {
   replaceState(state: WorldState): void {
     this.state = state;
     this.pending = [];
-    this.curr = makeSnapshot(state);
+    this.curr = this.snapshot();
     this.prev = this.curr;
+  }
+
+  snapshot(): Snapshot {
+    return makeSnapshot(this.state, { godView: this.godView });
   }
 }

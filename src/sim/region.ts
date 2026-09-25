@@ -54,6 +54,14 @@ const GENERATORS: Record<RegionId, (seed: number, id: RegionId) => RegionMap> = 
   'test-forest': generateForestRegion,
 };
 
+/** Register a region generator, e.g. a synthetic test region. Must itself be pure. */
+export function registerRegion(
+  id: RegionId,
+  generate: (seed: number, id: RegionId) => RegionMap,
+): void {
+  GENERATORS[id] = generate;
+}
+
 // Memoisation of a pure function: generation is deterministic in (seed, id).
 const cache = new Map<string, RegionMap>();
 const CACHE_LIMIT = 4;

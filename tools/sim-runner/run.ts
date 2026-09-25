@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { compassName } from '../../src/core/math';
 import { formatClock, formatDate } from '../../src/core/time';
-import { describePlayerGround, runHeadless } from './headless';
+import { describeAnimals, describePlayerGround, runHeadless } from './headless';
 
 const { values } = parseArgs({
   options: {
@@ -39,7 +39,8 @@ console.log(`The Living Hunt — headless run
   simulated   ${days} days (${when(result.startTime)} → ${when(state.time)})
   steps       ${result.steps.toLocaleString('en')} × ${stepSeconds} s
   wall time   ${result.wallMs.toFixed(0)} ms (${simDaysPerSecond.toFixed(0)} game days per second)
-  events      ${eventCounts.hourStarted} hours · ${eventCounts.dayStarted} days · ${eventCounts.seasonStarted} seasons
+  events      ${eventCounts.hourStarted} hours · ${eventCounts.dayStarted} days · ${eventCounts.seasonStarted} seasons · ${eventCounts.sound} sounds heard · ${eventCounts.sighted} sightings
+  animals     ${describeAnimals(state)}
   player      (${state.player.x.toFixed(1)}, ${state.player.y.toFixed(1)}) m · ${describePlayerGround(state)}
   wind        from ${compassName(state.weather.windFromDeg)} at ${state.weather.windSpeed.toFixed(1)} m/s
   state hash  ${result.hash}`);
@@ -56,6 +57,7 @@ if (values.out) {
     steps: result.steps,
     wallMs: Math.round(result.wallMs),
     eventCounts,
+    activity: result.activity,
     hash: result.hash,
   };
   writeFileSync(join(values.out, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);

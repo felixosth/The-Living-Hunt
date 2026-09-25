@@ -11,7 +11,9 @@ import { getRegionMap } from './sim/region';
 import type { WorldState } from './sim/state';
 import { createWorld, stateHash } from './sim/world';
 import { mountUi } from './ui/App';
+import { describeSound } from './ui/describe';
 import {
+  addNotice,
   controls,
   debugOpen,
   type GameActions,
@@ -112,10 +114,17 @@ async function boot(): Promise<void> {
   };
 
   mountUi(uiRoot, actions);
-  effect(() => renderer.setGodView(godView.value));
+  effect(() => {
+    renderer.setGodView(godView.value);
+    session.godView = godView.value;
+  });
 
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Backquote' && !e.repeat) debugOpen.value = !debugOpen.value;
+    if (e.repeat || (e.target as HTMLElement | null)?.tagName === 'INPUT') return;
+    if (e.code === 'Backquote') debugOpen.value = !debugOpen.value;
+    // T: wait (10×), again for normal speed. P: pause.
+    if (e.code === 'KeyT') actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
+    if (e.code === 'KeyP') actions.togglePause();
   });
   stage.addEventListener(
     'wheel',
@@ -138,7 +147,18 @@ async function boot(): Promise<void> {
       const command = input.poll();
       if (command) session.enqueue(command);
       const t0 = performance.now();
-      session.tick();
+      const events = session.tick();
+      let stirred = false;
+      for (const event of events) {
+        if (event.type === 'sound') {
+          addNotice(describeSound(event, session.curr.player.x, session.curr.player.y));
+          stirred = true;
+        } else if (event.type === 'sighted') {
+          stirred = true;
+        }
+      }
+      // Waiting stops as soon as something is seen or heard.
+      if (stirred && session.timeScale > 1) actions.setTimeScale(1);
       tickMsSum += performance.now() - t0;
       ticks++;
       snapshot.value = session.curr;
@@ -166,7 +186,12 @@ async function boot(): Promise<void> {
 
   // Read-only hooks for debugging from the console and for browser tests.
   Object.assign(window, {
-    livingHunt: { snapshot: () => session.curr, stateHash: () => stateHash(session.state) },
+    livingHunt: {
+      snapshot: () => session.curr,
+      stateHash: () => stateHash(session.state),
+      /** Developer tool: jump to a point in metres. */
+      teleport: (x: number, y: number) => session.enqueue({ type: 'teleport', x, y }),
+    },
   });
 }
 
