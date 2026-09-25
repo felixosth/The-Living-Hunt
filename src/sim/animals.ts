@@ -34,6 +34,7 @@ import {
 import { emitBed, emitBlood, emitFeedingSigns, emitPrints, snowSign } from './signEmission';
 import { addSign, SIGN_LIFETIME_H, SignKind } from './signs';
 import type { Animal, AnimalHome, HitZone, PlayerState, WorldState, Wound } from './state';
+import { scentAt } from './stealth';
 import { isHeavyRain, soundMasking, weatherSight } from './weather';
 
 export const SUSPICIOUS = 0.3;
@@ -486,7 +487,13 @@ function behave(a: Animal, ctx: Ctx): void {
     moved = flee(a, ctx, runDistance(a, ctx, def.speed.flee * pace(a, ctx)));
     if (ctx.now >= a.until) {
       a.awareness = 0.45;
-      travelTo(a, ctx, chooseRest(a, ctx));
+      const rest = chooseRest(a, ctx);
+      if (rest >= 0) travelTo(a, ctx, rest);
+      else {
+        // Nowhere to go without crossing that scent: lie up and wait.
+        a.goal = -1;
+        begin(a, ctx, 'bedded', 20, 40);
+      }
     }
   } else if (a.lookUntil > ctx.now) {
     // Stopped by a call: it stands with its head up, looking, without turning its body.
@@ -692,10 +699,13 @@ function decide(a: Animal, ctx: Ctx): void {
 function chooseRest(a: Animal, ctx: Ctx): number {
   const { rest } = a.home;
   if (rest.length === 0) return a.goal;
-  if (a.wariness < 0.3 || rest.length === 1) return rest[0] as number;
-  let best = rest[0] as number;
+  // Never back through the hunter's scent: if every way home crosses it, lie up where it is.
+  const clear = rest.filter((r) => !scentReaches(a, ctx, ctx.map.pois[r] as Poi));
+  if (clear.length === 0) return -1;
+  if (a.wariness < 0.3 || clear.length === 1) return clear[0] as number;
+  let best = clear[0] as number;
   let bestD = -1;
-  for (const r of rest) {
+  for (const r of clear) {
     const p = ctx.map.pois[r] as Poi;
     const d = Math.hypot(p.x - a.alarmX, p.y - a.alarmY);
     if (d > bestD) {
@@ -704,6 +714,22 @@ function chooseRest(a: Animal, ctx: Ctx): number {
     }
   }
   return best;
+}
+
+/** Whether the player's scent lies across the way from here to a place, to this animal's nose. */
+function scentReaches(a: Animal, ctx: Ctx, to: { x: number; y: number }): boolean {
+  const { cues } = ctx;
+  if (!cues) return false;
+  const nose = SPECIES[a.species].senses.smell;
+  const d = Math.hypot(to.x - a.x, to.y - a.y);
+  const samples = Math.max(1, Math.ceil(d / 15));
+  for (let i = 1; i <= samples; i++) {
+    const t = i / samples;
+    const x = a.x + (to.x - a.x) * t;
+    const y = a.y + (to.y - a.y) * t;
+    if (scentAt(cues.scent, cues.x, cues.y, x, y, nose) > 0) return true;
+  }
+  return false;
 }
 
 function arrived(a: Animal, ctx: Ctx): boolean {
@@ -825,25 +851,46 @@ function graze(a: Animal, ctx: Ctx): number {
 }
 
 const FLEE_DIRECTIONS = 16;
-/** Animals steer away from the region's edge when they are closer than this, in metres. */
-const EDGE_AVOID_M = 40;
+/** A fleeing animal judges each way by where it would be this far on, metres. */
+const FLEE_LOOKAHEAD_M = 60;
 
 /**
- * The direction to run: away from the danger, bent inwards near the region's
- * edge so a fleeing animal runs along it, and past the danger if cornered.
+ * The direction to run: away from the danger and out of the hunter's scent,
+ * with room to keep running. Each way is judged by where it would be a
+ * little way on, so near the region's edge it runs along it, not into it.
  */
-function fleeHeading(a: Animal, map: RegionMap): number {
-  let vx = a.x - a.alarmX;
-  let vy = a.y - a.alarmY;
-  const len = Math.hypot(vx, vy) || 1;
-  vx /= len;
-  vy /= len;
+function fleeHeading(a: Animal, map: RegionMap, cues: PlayerCues | null = null): number {
+  const away = Math.atan2(a.y - a.alarmY, a.x - a.alarmX);
   const w = regionWidthM(map);
   const h = regionHeightM(map);
-  const push = (d: number) => (d < EDGE_AVOID_M ? 1.6 * (1 - d / EDGE_AVOID_M) : 0);
-  vx += push(a.x) - push(w - a.x);
-  vy += push(a.y) - push(h - a.y);
-  return Math.atan2(vy, vx);
+  const nose = SPECIES[a.species].senses.smell;
+  let best = away;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (let k = 0; k < FLEE_DIRECTIONS; k++) {
+    const dir = away + (k / FLEE_DIRECTIONS) * Math.PI * 2;
+    const room = roomToRun(a.x, a.y, dir, w, h);
+    const reach = Math.min(room, FLEE_LOOKAHEAD_M);
+    const x = a.x + Math.cos(dir) * reach;
+    const y = a.y + Math.sin(dir) * reach;
+    const scent = cues ? scentAt(cues.scent, cues.x, cues.y, x, y, nose) : 0;
+    const towards = Math.max(0, -Math.cos(dir - away));
+    const score =
+      Math.cos(dir - away) + 1.5 * Math.min(1, room / FLEE_LOOKAHEAD_M) - 3 * scent - 0.8 * towards;
+    if (score > bestScore) {
+      bestScore = score;
+      best = dir;
+    }
+  }
+  return best;
+}
+
+/** How far it is from (x, y) to the region's edge going in direction `dir`, metres. */
+function roomToRun(x: number, y: number, dir: number, w: number, h: number): number {
+  const dx = Math.cos(dir);
+  const dy = Math.sin(dir);
+  const tx = dx > 1e-9 ? (w - x) / dx : dx < -1e-9 ? -x / dx : Number.POSITIVE_INFINITY;
+  const ty = dy > 1e-9 ? (h - y) / dy : dy < -1e-9 ? -y / dy : Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.min(tx, ty));
 }
 
 /**
@@ -871,7 +918,7 @@ function flee(a: Animal, ctx: Ctx, distance: number): number {
   let moved = 0;
   let turnLeft = (TURN_RATE[a.species] * ctx.dt) / 60;
   while (left > 1e-6) {
-    const away = fleeHeading(a, map);
+    const away = fleeHeading(a, map, ctx.cues);
     let bestScore = Number.NEGATIVE_INFINITY;
     let best = away;
     for (let k = 0; k < FLEE_DIRECTIONS; k++) {

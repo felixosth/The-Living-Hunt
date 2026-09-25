@@ -5,6 +5,7 @@ import { ALARMED, animalContext, dayPart, SUSPICIOUS, startFlight } from '../src
 import { playerCanSee, sightlineObstruction } from '../src/sim/perception';
 import { getRegionMap, isWalkable } from '../src/sim/region';
 import type { Animal } from '../src/sim/state';
+import { scentAt, scentCone } from '../src/sim/stealth';
 import { createWorld, step } from '../src/sim/world';
 import { runHeadless } from '../tools/sim-runner/headless';
 import { CENTRE, fair, lone, synthMap } from './helpers';
@@ -120,6 +121,32 @@ describe('senses', () => {
     for (let i = 0; i < 60; i++) step(world, [{ type: 'move', x: 0, y: 0, gait: 'walk' }], 60);
     // Once it calms down it doesn't stay pinned to the edge.
     expect(Math.min(a.x, a.y, 256 - a.x, 256 - a.y)).toBeGreaterThan(8);
+  });
+
+  it('a deer that smells you in a corner slips out of the scent and lies up, not back and forth', () => {
+    // Hunter near the north edge, wind from the west: the scent runs along the edge into the corner.
+    const map = getRegionMap(420, 'test-forest');
+    const w = map.width * map.tileSize;
+    for (const hunter of [
+      { x: w - 232, y: 77 },
+      { x: w - 112, y: 60 },
+    ]) {
+      const world = createWorld(420);
+      fair(world, { windFromDeg: 270, windSpeed: 4.7 });
+      Object.assign(world.player, { ...hunter, moveX: 0, moveY: 0, gait: 'sneak' });
+      const a = world.animals.find((x) => x.species === 'roe') as Animal;
+      for (const b of world.animals) if (b !== a) Object.assign(b, { x: 20, y: 400 });
+      Object.assign(a, { groupId: a.id, x: w - 37, y: 57, activity: 'feeding', awareness: 0 });
+      Object.assign(a, { until: world.time + 3600 });
+      let barks = 0;
+      for (let i = 0; i < 400; i++) {
+        barks += step(world, [], 6).filter((e) => e.type === 'sound' && e.kind === 'bark').length;
+      }
+      const cone = scentCone(world.weather);
+      expect(barks).toBeLessThanOrEqual(2);
+      expect(a.activity).not.toBe('fleeing');
+      expect(scentAt(cone, world.player.x, world.player.y, a.x, a.y)).toBe(0);
+    }
   });
 
   it('a startled deer gets up to speed and spins round before it runs flat out', () => {
