@@ -1013,8 +1013,11 @@ function newWound(
   };
 }
 
-/** Blood and cut hair where the arrow struck. */
-function addHitSign(a: Animal, ctx: Ctx, blood: BloodType): void {
+/**
+ * Blood and cut hair where the arrow struck, or a pool where it lay down.
+ * Struck, it splashes the way it bolts: away from you.
+ */
+function addHitSign(a: Animal, ctx: Ctx, blood: BloodType, struck = true): void {
   addSign(ctx.state.signs, {
     kind: SignKind.Blood,
     species: a.species,
@@ -1022,7 +1025,7 @@ function addHitSign(a: Animal, ctx: Ctx, blood: BloodType): void {
     x: a.x,
     y: a.y,
     t: ctx.now,
-    heading: a.heading,
+    heading: struck ? fleeHeading(a, ctx.map) : a.heading,
     detail: blood,
     weight: a.weightKg,
     integrity: 1,
@@ -1078,7 +1081,7 @@ function behaveWounded(a: Animal, ctx: Ctx): number {
         a.until = Number.MAX_SAFE_INTEGER;
         a.awareness = 0.2;
         // A pool of blood where it lies.
-        addHitSign(a, ctx, w.blood as BloodType);
+        addHitSign(a, ctx, w.blood as BloodType, false);
       }
     }
     return moved;

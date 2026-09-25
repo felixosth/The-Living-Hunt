@@ -126,6 +126,63 @@ describe('readings', () => {
     );
   });
 
+  it('reads one animal consistently from sign to sign', () => {
+    const k = initialKnowledge();
+    const print = (id: number, animal: number, ageS: number): SignRecord => ({
+      id,
+      kind: SignKind.Print,
+      kindName: 'print',
+      species: 'roe',
+      animal,
+      x: 0,
+      y: 0,
+      t: 10_000 - ageS,
+      heading: 0,
+      detail: 0,
+      weight: 22,
+      integrity: 1,
+      flags: 0,
+    });
+    // Two prints of the same deer from the same moment read the same.
+    const a = readSign(print(1, 7, 600), k, 10_000);
+    const b = readSign(print(2, 7, 600), k, 10_000);
+    expect(b.weightKg).toEqual(a.weightKg);
+    expect(b.ageH).toEqual(a.ageH);
+    // Along its trail, older prints never read younger than newer ones.
+    let prev = readSign(print(3, 7, 0), k, 10_000).ageH?.lo ?? 0;
+    // (Under two hours, where ages are read to the quarter hour.)
+    for (let ageS = 300; ageS < 2 * 3600; ageS += 300) {
+      const lo = readSign(print(10 + ageS, 7, ageS), k, 10_000).ageH?.lo ?? 0;
+      expect(lo).toBeGreaterThanOrEqual(prev);
+      prev = lo;
+    }
+  });
+
+  it('blood tells which way the animal went', () => {
+    const k = initialKnowledge();
+    const r = readSign(
+      {
+        id: 5,
+        kind: SignKind.Blood,
+        kindName: 'blood',
+        species: 'roe',
+        animal: 3,
+        x: 0,
+        y: 0,
+        t: 0,
+        heading: 0,
+        detail: 2,
+        weight: 22,
+        integrity: 1,
+        flags: 0,
+      },
+      k,
+      600,
+    );
+    expect(r.headingDeg).toBe(90);
+    expect(r.lines.join(' ')).toContain('east');
+  });
+
   it('gets sharper with knowledge', () => {
     const record: SignRecord = {
       id: 42,
@@ -273,6 +330,43 @@ describe('scanning, reading and following', () => {
       }
     }
     expect(followed).toBeGreaterThan(5);
+  });
+
+  it('following picks up signs left in the same moment, in the order they were made', () => {
+    const world = createWorld(1);
+    const { signs, player } = world;
+    const x0 = player.x;
+    const y0 = player.y;
+    // A blood trail laid in one step: ten drops a metre apart, all at the same time.
+    const drops: number[] = [];
+    for (let k = 0; k < 10; k++) {
+      addSign(signs, {
+        kind: SignKind.Blood,
+        species: 'roe',
+        animal: 999,
+        x: x0 + k,
+        y: y0,
+        t: world.time - 60,
+        heading: 0,
+        detail: 1,
+        weight: 22,
+        integrity: 1,
+        lifetimeH: 48,
+      });
+      drops.push(signs.id[signs.count - 1] as number);
+    }
+    signs.flags[findSign(signs, drops[0] as number)] = SignFlag.Noticed;
+    step(world, [{ type: 'follow', signId: drops[0] as number }], 6);
+    for (let k = 0; k < 10; k++) {
+      player.x = x0 + k;
+      for (let n = 0; n < 3; n++) step(world, [], 6);
+    }
+    // The trail runs all the way to the last drop (before, same-moment drops were skipped).
+    expect(player.follow?.lastId).toBe(drops[9]);
+    const followed = drops.filter(
+      (id) => (signs.flags[findSign(signs, id)] as number) & SignFlag.Followed,
+    );
+    expect(followed.length).toBeGreaterThan(2);
   });
 
   it('seeing the animal whose sign you read confirms it', () => {

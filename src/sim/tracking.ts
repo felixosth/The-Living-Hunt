@@ -132,6 +132,7 @@ export function follow(state: WorldState, signId: number): void {
   player.follow = {
     animal: signs.animal[i] as number,
     lastT: signs.t[i] as number,
+    lastId: signs.id[i] as number,
     x: signs.x[i] as number,
     y: signs.y[i] as number,
     lost: false,
@@ -149,6 +150,7 @@ function advanceFollow(
   const f = player.follow;
   if (!f) return;
   f.lastT = signs.t[i] as number;
+  f.lastId = signs.id[i] as number;
   f.x = signs.x[i] as number;
   f.y = signs.y[i] as number;
   setFlag(signs, i, SignFlag.Noticed | SignFlag.Followed);
@@ -182,15 +184,20 @@ function updateFollow(
   const moving = player.moveX !== 0 || player.moveY !== 0;
   const pace = moving && player.gait === 'run' ? 0.25 : 1;
   for (let round = 0; round < 3; round++) {
-    // The next few signs of this animal, in time order.
+    // The next few signs of this animal, in the order they were made.
     const next: number[] = [];
     for (let i = 0; i < signs.count; i++) {
-      if (signs.animal[i] !== f.animal || (signs.t[i] as number) <= f.lastT) continue;
-      if (!isTrailSign(signs.kind[i] as number)) continue;
+      if (signs.animal[i] !== f.animal || !isTrailSign(signs.kind[i] as number)) continue;
+      const t = signs.t[i] as number;
+      if (t < f.lastT || (t === f.lastT && (signs.id[i] as number) <= f.lastId)) continue;
       next.push(i);
     }
     if (next.length === 0) return;
-    next.sort((a, b) => (signs.t[a] as number) - (signs.t[b] as number));
+    next.sort(
+      (a, b) =>
+        (signs.t[a] as number) - (signs.t[b] as number) ||
+        (signs.id[a] as number) - (signs.id[b] as number),
+    );
     let advanced = false;
     for (const i of next.slice(0, 4)) {
       const d = Math.hypot((signs.x[i] as number) - player.x, (signs.y[i] as number) - player.y);

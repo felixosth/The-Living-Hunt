@@ -17,7 +17,7 @@ import type { SignStore } from './signs';
  * Version of the WorldState shape. Bump it whenever the shape changes, and add
  * a migration in src/persistence/migrations.ts.
  */
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 export type Gait = 'sneak' | 'walk' | 'run';
 export const GAITS: readonly Gait[] = ['sneak', 'walk', 'run'];
@@ -113,6 +113,8 @@ export interface FollowState {
   animal: number;
   /** Time the last found sign was made; the trail continues with later ones. */
   lastT: number;
+  /** Its id: signs made in the same moment continue the trail in id order. */
+  lastId: number;
   x: number;
   y: number;
   /** You've wandered away from the last sign found. */

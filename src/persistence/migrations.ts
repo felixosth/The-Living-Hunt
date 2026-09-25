@@ -94,6 +94,15 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
       },
     };
   },
+  /** Following orders signs made in the same moment by id. */
+  6: (old) => {
+    const player = old.player as Record<string, unknown>;
+    const follow = player.follow as Record<string, unknown> | null;
+    return {
+      ...old,
+      player: { ...player, follow: follow ? { ...follow, lastId: 0 } : null },
+    };
+  },
 };
 
 export function migrateState(

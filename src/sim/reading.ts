@@ -117,7 +117,9 @@ export function readSign(
 ): Reading {
   const literacy = level(k.signs[sign.kindName]);
   const speciesLevel = level(k.species[sign.species]);
-  const rng = seedRng(hash32(sign.id, literacy, speciesLevel, 'reading'));
+  // Your misjudgement is per animal, not per sign: every sign of one animal is
+  // read off in the same way, so a trail reads consistently from sign to sign.
+  const rng = seedRng(hash32(sign.animal, literacy, speciesLevel, 'reading'));
   const lines: string[] = [];
   const def = SPECIES[sign.species];
   const ageH = Math.max(0, (now - sign.t) / 3600);
@@ -226,7 +228,12 @@ export function readSign(
     }
     case 'blood': {
       const lore = BLOOD_LORE[(sign.detail || BloodType.Sparse) as Exclude<BloodType, 0>];
-      if (literacy >= 1) lines.push(`${lore.looks}.`);
+      if (literacy >= 1) {
+        lines.push(`${lore.looks}.`);
+        const deg = Math.round((((radToDeg(sign.heading) + 90) % 360) + 360) % 360);
+        reading.headingDeg = deg;
+        lines.push(`Splashed towards the ${COMPASS_WORDS[compassName(deg)]}: it went that way.`);
+      }
       if (literacy >= 2) lines.push(`That means ${lore.means}.`);
       if (literacy >= 3) lines.push(lore.advice);
       break;
