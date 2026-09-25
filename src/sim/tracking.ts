@@ -4,6 +4,7 @@
  */
 import { chance, type RngState } from '../core/rng';
 import type { SimEvent } from './events';
+import { noteSignFound } from './hunting';
 import { learn, lesson, level } from './knowledge';
 import { readSign } from './reading';
 import type { RegionMap } from './region';
@@ -65,11 +66,12 @@ function completeScan(state: WorldState, light: number, events: SimEvent[]): voi
       (1 - (0.5 * d) / SCAN_RADIUS_M);
     if (chance(rng, Math.min(1, p))) {
       setFlag(signs, i, SignFlag.Noticed);
+      if (kind !== SignKind.Arrow) noteSignFound(player, signs.animal[i] as number, state.time);
       found++;
       // A scan can pick up a trail you're following further along.
       const f = player.follow;
       if (f && signs.animal[i] === f.animal && (signs.t[i] as number) > f.lastT) {
-        advanceFollow(player, signs, i, events);
+        advanceFollow(player, signs, i, state.time, events);
       }
     }
   }
@@ -118,13 +120,20 @@ export function follow(state: WorldState, signId: number): void {
   setFlag(signs, i, SignFlag.Followed);
 }
 
-function advanceFollow(player: PlayerState, signs: SignStore, i: number, events: SimEvent[]): void {
+function advanceFollow(
+  player: PlayerState,
+  signs: SignStore,
+  i: number,
+  now: number,
+  events: SimEvent[],
+): void {
   const f = player.follow;
   if (!f) return;
   f.lastT = signs.t[i] as number;
   f.x = signs.x[i] as number;
   f.y = signs.y[i] as number;
   setFlag(signs, i, SignFlag.Noticed | SignFlag.Followed);
+  noteSignFound(player, f.animal, now);
   if (f.lost) {
     f.lost = false;
     events.push({ type: 'trailFound' });
@@ -146,6 +155,7 @@ function updateFollow(
   rng: RngState,
   dt: number,
   light: number,
+  now: number,
   events: SimEvent[],
 ): void {
   const f = player.follow;
@@ -176,7 +186,7 @@ function updateFollow(
         pace *
         Math.min(1, dt / 6);
       if (chance(rng, Math.min(1, p))) {
-        advanceFollow(player, signs, i, events);
+        advanceFollow(player, signs, i, now, events);
         advanced = true;
         break;
       }
@@ -212,7 +222,10 @@ function noticeObvious(state: WorldState): void {
       (kind === SignKind.Bed && integrity > 0.7);
     if (!obvious) continue;
     const reach = kind === SignKind.Bed ? 4 : 6;
-    if (dx * dx + dy * dy <= reach * reach) setFlag(signs, i, SignFlag.Noticed);
+    if (dx * dx + dy * dy <= reach * reach) {
+      setFlag(signs, i, SignFlag.Noticed);
+      if (kind !== SignKind.Arrow) noteSignFound(player, signs.animal[i] as number, state.time);
+    }
   }
 }
 
@@ -230,7 +243,7 @@ export function updateTracking(
     completeScan(state, light, events);
   }
   noticeObvious(state);
-  updateFollow(player, state.signs, state.rng.signs, dt, light, events);
+  updateFollow(player, state.signs, state.rng.signs, dt, light, state.time, events);
 }
 
 /** Seeing an animal whose sign you read recently confirms the reading, which teaches a lot. */

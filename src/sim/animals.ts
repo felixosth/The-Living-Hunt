@@ -6,6 +6,7 @@
  * follow their leader. Mountain hares rest in forms by day and feed on meadow
  * edges at night; they sit tight until you come close, then burst away.
  */
+import { BloodType } from '../content/blood';
 import { SPECIES, type SpeciesId } from '../content/species';
 import { clamp, lerpAngle } from '../core/math';
 import { chance, nextRange, pick, type RngState } from '../core/rng';
@@ -20,8 +21,9 @@ import { type SimEvent, SOUND_RANGE_M, type SoundKind } from './events';
 import { cellCentre, cellOf, downhill, isCellOpen } from './nav';
 import { PERCEPTION_RANGE_M, type PlayerCues, perceivePlayer, playerCanSee } from './perception';
 import { coverAt, isWalkable, type Poi, type PoiKind, poiField, type RegionMap } from './region';
-import { emitBed, emitFeedingSigns, emitPrints } from './signEmission';
-import type { Animal, AnimalHome, PlayerState, WorldState } from './state';
+import { emitBed, emitBlood, emitFeedingSigns, emitPrints } from './signEmission';
+import { addSign, SIGN_LIFETIME_H, SignKind } from './signs';
+import type { Animal, AnimalHome, HitZone, PlayerState, WorldState, Wound } from './state';
 
 export const SUSPICIOUS = 0.3;
 export const ALARMED = 0.7;
@@ -113,6 +115,8 @@ function makeAnimal(
     seen: false,
     since: state.time,
     stride: 0,
+    wound: null,
+    carcass: null,
   };
 }
 
@@ -178,7 +182,7 @@ export function spawnAnimals(state: WorldState, map: RegionMap): void {
 // The per-step update
 // ---------------------------------------------------------------------------
 
-interface Ctx {
+export interface Ctx {
   state: WorldState;
   map: RegionMap;
   dt: number;
@@ -186,6 +190,8 @@ interface Ctx {
   rng: RngState;
   events: SimEvent[];
   cues: PlayerCues | null;
+  /** Whether anyone is around to hear. */
+  playerPresent: boolean;
   byId: Map<number, Animal>;
 }
 
@@ -208,6 +214,7 @@ export function updateAnimals(
     rng: state.rng.ai,
     events,
     cues,
+    playerPresent: cues !== null,
     byId: new Map(state.animals.map((a) => [a.id, a])),
   };
   for (const a of state.animals) {
@@ -228,6 +235,7 @@ function leaveSigns(a: Animal, ctx: Ctx, x0: number, y0: number, was: Animal['ac
   const rng = state.rng.signs;
   emitPrints(state.signs, map, rng, a, x0, y0, now);
   emitFeedingSigns(state.signs, map, rng, a, dt, now);
+  if (a.wound) emitBlood(state.signs, rng, a, x0, y0, now);
   if (was !== a.activity) {
     if (was === 'bedded' && now - a.since >= 30 * 60) {
       const beds = state.animals.filter(
@@ -277,7 +285,7 @@ export function updateSightings(
 
 function sense(a: Animal, ctx: Ctx, cues: PlayerCues): void {
   const minutes = ctx.dt / 60;
-  if (a.activity === 'fleeing') return;
+  if (a.activity === 'fleeing' || a.activity === 'dead') return;
   const d = Math.hypot(cues.x - a.x, cues.y - a.y);
   if (d > PERCEPTION_RANGE_M) {
     a.awareness = Math.max(0, a.awareness - AWARENESS_DECAY * minutes);
@@ -299,6 +307,11 @@ function sense(a: Animal, ctx: Ctx, cues: PlayerCues): void {
   const before = a.awareness;
   a.awareness = clamp(a.awareness + gain - AWARENESS_DECAY * minutes, 0, 1);
 
+  if (a.wound) {
+    // A wounded animal lying up gets up and moves on if it senses you coming.
+    if (a.activity === 'bedded' && a.awareness >= 0.55) pushWounded(a, ctx);
+    return;
+  }
   const flushRange = def.flushDistance * (1 + a.wariness);
   const flushed =
     a.activity === 'bedded' &&
@@ -314,7 +327,8 @@ function sense(a: Animal, ctx: Ctx, cues: PlayerCues): void {
 
 /** Crossing the player's fresh trail: nervous, or off at once if it's very fresh. */
 function checkScentTrail(a: Animal, ctx: Ctx): void {
-  if (a.activity === 'fleeing' || ctx.now - a.scentCheckedAt < 20 * 60) return;
+  if (a.activity === 'fleeing' || a.activity === 'dead' || a.wound) return;
+  if (ctx.now - a.scentCheckedAt < 20 * 60) return;
   const cols = Math.ceil((ctx.map.width * ctx.map.tileSize) / SCENT_CELL_M);
   const cx = Math.floor(a.x / SCENT_CELL_M);
   const cy = Math.floor(a.y / SCENT_CELL_M);
@@ -337,7 +351,9 @@ function checkScentTrail(a: Animal, ctx: Ctx): void {
 
 function emitSound(ctx: Ctx, kind: SoundKind, a: Animal): void {
   const { player } = ctx.state;
-  if (!ctx.cues || Math.hypot(player.x - a.x, player.y - a.y) > SOUND_RANGE_M[kind]) return;
+  if (!ctx.playerPresent || Math.hypot(player.x - a.x, player.y - a.y) > SOUND_RANGE_M[kind]) {
+    return;
+  }
   ctx.events.push({ type: 'sound', kind, species: a.species, x: a.x, y: a.y, time: ctx.now });
 }
 
@@ -368,8 +384,8 @@ function alertGroup(a: Animal, ctx: Ctx, level: number): void {
   }
 }
 
-function startFlight(a: Animal, ctx: Ctx, fromGroup = false): void {
-  if (a.activity === 'fleeing') return;
+export function startFlight(a: Animal, ctx: Ctx, fromGroup = false): void {
+  if (a.activity === 'fleeing' || a.activity === 'dead' || a.wound) return;
   const [lo, hi] = a.species === 'roe' ? [240, 480] : [150, 300];
   a.activity = 'fleeing';
   a.until = ctx.now + Math.round(nextRange(ctx.rng, lo, hi));
@@ -398,7 +414,13 @@ function startFlight(a: Animal, ctx: Ctx, fromGroup = false): void {
 function behave(a: Animal, ctx: Ctx): void {
   const def = SPECIES[a.species];
   let moved = 0;
-  if (a.activity === 'fleeing') {
+  if (a.activity === 'dead') {
+    a.speed = 0;
+    return;
+  }
+  if (a.wound) {
+    moved = behaveWounded(a, ctx);
+  } else if (a.activity === 'fleeing') {
     moved = flee(a, ctx, (def.speed.flee * ctx.dt) / 60);
     if (ctx.now >= a.until) {
       a.awareness = 0.45;
@@ -416,7 +438,10 @@ function behave(a: Animal, ctx: Ctx): void {
 function leaderOf(a: Animal, ctx: Ctx): Animal | null {
   if (a.groupId === a.id) return null;
   const leader = ctx.byId.get(a.groupId);
-  return leader && leader.activity !== 'fleeing' ? leader : null;
+  if (!leader || leader.wound || leader.activity === 'fleeing' || leader.activity === 'dead') {
+    return null;
+  }
+  return leader;
 }
 
 /** Follow the daily routine; returns the distance moved. */
@@ -701,7 +726,280 @@ function flee(a: Animal, ctx: Ctx, distance: number): number {
   return moved;
 }
 
+// ---------------------------------------------------------------------------
+// Wounds
+// ---------------------------------------------------------------------------
+
+interface WoundRule {
+  blood: BloodType;
+  /** Blood signs per metre moved. */
+  bleed: number;
+  /** Seconds the bleeding lasts (0 = until death). */
+  bleedFor: number;
+  /** Metres it runs after the hit. */
+  flee: [number, number];
+  diesAfterRun?: boolean;
+  /** Hours until it dies if left alone. */
+  deathH?: [number, number];
+  /** Chance it survives. */
+  survive?: number;
+  /** Metres it runs again when pushed from its bed. */
+  push?: [number, number];
+  /** Flight speed multiplier. */
+  speed: number;
+}
+
+const WOUND_RULES: Record<Exclude<HitZone, 'spine' | 'miss'>, WoundRule> = {
+  heart: {
+    blood: BloodType.Bright,
+    bleed: 0.9,
+    bleedFor: 0,
+    flee: [30, 80],
+    diesAfterRun: true,
+    speed: 1,
+  },
+  lungs: {
+    blood: BloodType.Frothy,
+    bleed: 0.7,
+    bleedFor: 0,
+    flee: [100, 250],
+    diesAfterRun: true,
+    speed: 0.85,
+  },
+  liver: {
+    blood: BloodType.Dark,
+    bleed: 0.4,
+    bleedFor: 0,
+    flee: [80, 160],
+    deathH: [1, 4],
+    push: [150, 300],
+    speed: 0.8,
+  },
+  gut: {
+    blood: BloodType.Gut,
+    bleed: 0.25,
+    bleedFor: 0,
+    flee: [100, 220],
+    deathH: [6, 16],
+    survive: 0.3,
+    push: [300, 550],
+    speed: 0.75,
+  },
+  muscle: {
+    blood: BloodType.Sparse,
+    bleed: 0.3,
+    bleedFor: 40 * 60,
+    flee: [150, 300],
+    survive: 1,
+    speed: 0.8,
+  },
+  bone: {
+    blood: BloodType.Graze,
+    bleed: 0.12,
+    bleedFor: 10 * 60,
+    flee: [150, 300],
+    survive: 1,
+    speed: 1,
+  },
+  graze: {
+    blood: BloodType.Graze,
+    bleed: 0.1,
+    bleedFor: 10 * 60,
+    flee: [120, 250],
+    survive: 1,
+    speed: 1,
+  },
+};
+
+/**
+ * An arrow strikes (or misses) an animal. Returns nothing; the animal's
+ * wound, flight and blood tell the story.
+ */
+export function applyHit(
+  a: Animal,
+  ctx: Ctx,
+  zone: HitZone,
+  tainted: boolean,
+  lodgedArrow: boolean,
+  fromX: number,
+  fromY: number,
+): void {
+  const { now, rng } = ctx;
+  a.alarmX = fromX;
+  a.alarmY = fromY;
+  if (zone === 'miss') {
+    startFlight(a, ctx);
+    return;
+  }
+  if (zone === 'spine') {
+    a.wound = newWound(zone, BloodType.Bright, 0, 0, now, tainted, lodgedArrow);
+    addHitSign(a, ctx, BloodType.Bright);
+    kill(a, ctx);
+    alertMates(a, ctx);
+    return;
+  }
+  const rule = WOUND_RULES[zone];
+  const small = a.species === 'hare' ? 0.5 : 1;
+  const wound = newWound(zone, rule.blood, rule.bleed, rule.bleedFor, now, tainted, lodgedArrow);
+  wound.fleeLeft = nextRange(rng, rule.flee[0], rule.flee[1]) * small;
+  wound.diesAfterRun = rule.diesAfterRun ?? false;
+  const survives = chance(rng, rule.survive ?? 0);
+  if (rule.deathH && !survives) {
+    wound.deathAt = now + Math.round(nextRange(rng, rule.deathH[0], rule.deathH[1]) * 3600);
+  }
+  if (survives) wound.healAt = now + (rule.bleedFor > 0 ? rule.bleedFor : 20 * 3600) + 1800;
+  a.wound = wound;
+  a.activity = 'fleeing';
+  a.awareness = 1;
+  a.wariness = 1;
+  addHitSign(a, ctx, rule.blood);
+  if (a.species === 'roe') emitSound(ctx, 'crash', a);
+  else emitSound(ctx, 'flush', a);
+  alertMates(a, ctx);
+}
+
+function newWound(
+  zone: HitZone,
+  blood: number,
+  bleed: number,
+  bleedFor: number,
+  at: number,
+  tainted: boolean,
+  lodgedArrow: boolean,
+): Wound {
+  return {
+    zone,
+    at,
+    blood,
+    bleed,
+    bleedFor,
+    fleeLeft: 0,
+    diesAfterRun: false,
+    deathAt: 0,
+    healAt: 0,
+    pushed: 0,
+    tainted,
+    lodgedArrow,
+  };
+}
+
+/** Blood and cut hair where the arrow struck. */
+function addHitSign(a: Animal, ctx: Ctx, blood: BloodType): void {
+  addSign(ctx.state.signs, {
+    kind: SignKind.Blood,
+    species: a.species,
+    animal: a.id,
+    x: a.x,
+    y: a.y,
+    t: ctx.now,
+    heading: a.heading,
+    detail: blood,
+    weight: a.weightKg,
+    integrity: 1,
+    lifetimeH: SIGN_LIFETIME_H.blood,
+  });
+}
+
+function alertMates(a: Animal, ctx: Ctx): void {
+  for (const mate of ctx.state.animals) {
+    if (mate === a || mate.groupId !== a.groupId) continue;
+    mate.alarmX = a.alarmX;
+    mate.alarmY = a.alarmY;
+    startFlight(mate, ctx, true);
+  }
+}
+
+/** A wounded animal lying up is pushed on by the hunter coming too close. */
+function pushWounded(a: Animal, ctx: Ctx): void {
+  const w = a.wound;
+  if (!w) return;
+  const rule = WOUND_RULES[w.zone as keyof typeof WOUND_RULES];
+  const push = rule?.push ?? [100, 200];
+  w.fleeLeft = nextRange(ctx.rng, push[0], push[1]) * (a.species === 'hare' ? 0.5 : 1);
+  w.pushed++;
+  // Adrenaline keeps it going longer.
+  if (w.deathAt > 0) w.deathAt += 3600;
+  a.activity = 'fleeing';
+  a.awareness = 1;
+  if (a.species === 'roe') emitSound(ctx, 'crash', a);
+}
+
+function behaveWounded(a: Animal, ctx: Ctx): number {
+  const w = a.wound as Wound;
+  const def = SPECIES[a.species];
+  if (w.healAt > 0 && ctx.now >= w.healAt) {
+    // It lives, and it will remember.
+    a.wound = null;
+    a.wariness = 1;
+    a.awareness = 0.4;
+    travelTo(a, ctx, chooseRest(a, ctx));
+    return 0;
+  }
+  if (a.activity === 'fleeing') {
+    const rule = WOUND_RULES[w.zone as keyof typeof WOUND_RULES];
+    const speed = def.speed.flee * (rule?.speed ?? 1);
+    const moved = flee(a, ctx, Math.min(w.fleeLeft, (speed * ctx.dt) / 60));
+    w.fleeLeft -= moved;
+    if (w.fleeLeft <= 0.5 || moved < 1e-3) {
+      if (w.diesAfterRun) {
+        kill(a, ctx);
+      } else {
+        a.activity = 'bedded';
+        a.until = Number.MAX_SAFE_INTEGER;
+        a.awareness = 0.2;
+        // A pool of blood where it lies.
+        addHitSign(a, ctx, w.blood as BloodType);
+      }
+    }
+    return moved;
+  }
+  if (w.deathAt > 0 && ctx.now >= w.deathAt) kill(a, ctx);
+  else if (w.healAt === 0 && a.activity !== 'bedded') {
+    a.activity = 'bedded';
+    a.until = Number.MAX_SAFE_INTEGER;
+  }
+  return 0;
+}
+
+function kill(a: Animal, ctx: Ctx): void {
+  const w = a.wound;
+  a.activity = 'dead';
+  a.speed = 0;
+  a.awareness = 0;
+  a.carcass = {
+    diedAt: ctx.now,
+    zone: w?.zone ?? 'spine',
+    tainted: w?.tainted ?? false,
+    dressed: false,
+    dressedAt: 0,
+    lodgedArrow: w?.lodgedArrow ?? false,
+    weightKg: a.weightKg,
+  };
+  const record = ctx.state.player.hunts[String(a.id)];
+  if (record) {
+    record.diedAt = ctx.now;
+    record.deathX = a.x;
+    record.deathY = a.y;
+  }
+  ctx.events.push({ type: 'died', animalId: a.id, species: a.species, seen: a.seen });
+}
+
 /** Once a day, old frights fade. */
 export function calmAnimals(state: WorldState): void {
   for (const a of state.animals) a.wariness *= 0.6;
+}
+
+/** A context for acting on animals outside the per-step update (e.g. a shot). */
+export function animalContext(state: WorldState, map: RegionMap, events: SimEvent[]): Ctx {
+  return {
+    state,
+    map,
+    dt: 0,
+    now: state.time,
+    rng: state.rng.ai,
+    events,
+    cues: null,
+    playerPresent: true,
+    byId: new Map(state.animals.map((a) => [a.id, a])),
+  };
 }

@@ -17,13 +17,40 @@ interface AnimalSprite {
 
 function poseKey(a: AnimalView): string {
   const posture =
-    a.activity === 'bedded' ? 'bed' : a.alertness === 'fleeing' || a.speed > 8 ? 'run' : 'stand';
+    a.activity === 'dead'
+      ? 'dead'
+      : a.activity === 'bedded'
+        ? 'bed'
+        : a.alertness === 'fleeing' || a.speed > 8
+          ? 'run'
+          : 'stand';
   const rump = a.alertness === 'alarmed' || a.alertness === 'fleeing' ? 'flared' : 'calm';
   return `${a.species}:${a.juvenile ? 'j' : 'a'}:${posture}:${rump}:${a.seen ? 'seen' : 'hidden'}`;
 }
 
+/** Lying on its side, legs out. */
+function drawDead(g: Graphics, body: number, dark: number, len: number, wid: number): void {
+  const s = PX;
+  g.ellipse(0.05 * s, 0.08 * s, len * s, wid * 1.2 * s).fill({ color: COLORS.shadow, alpha: 0.3 });
+  for (const f of [0.28, 0.16, -0.22, -0.34]) {
+    g.moveTo(f * len * 2 * s, wid * 0.6 * s)
+      .lineTo((f * len * 2 + 0.05) * s, (wid + 0.3 * len) * s)
+      .stroke({ width: 0.06 * s, color: dark });
+  }
+  g.ellipse(0, 0, len * s, wid * s)
+    .fill(body)
+    .stroke({ width: 1, color: dark });
+  g.circle(len * 1.15 * s, -0.05 * s, wid * 0.55 * s)
+    .fill(body)
+    .stroke({ width: 1, color: dark });
+}
+
 function drawRoe(g: Graphics, posture: string, flared: boolean): void {
   const s = PX;
+  if (posture === 'dead') {
+    drawDead(g, COLORS.roe, COLORS.roeDark, 0.52, 0.24);
+    return;
+  }
   if (posture === 'bed') {
     g.ellipse(0.08 * s, 0.08 * s, 0.4 * s, 0.27 * s).fill({ color: COLORS.shadow, alpha: 0.3 });
     g.ellipse(0, 0, 0.38 * s, 0.25 * s)
@@ -66,6 +93,10 @@ function drawRoe(g: Graphics, posture: string, flared: boolean): void {
 
 function drawHare(g: Graphics, posture: string): void {
   const s = PX;
+  if (posture === 'dead') {
+    drawDead(g, COLORS.hare, COLORS.hareDark, 0.22, 0.11);
+    return;
+  }
   if (posture === 'bed') {
     g.ellipse(0.04 * s, 0.04 * s, 0.18 * s, 0.14 * s).fill({ color: COLORS.shadow, alpha: 0.3 });
     g.ellipse(0, 0, 0.17 * s, 0.13 * s)
@@ -164,7 +195,7 @@ export class AnimalLayer {
 
   /** An eye above the animal: the pupil grows with its awareness of you. */
   private drawEye(x: number, y: number, a: AnimalView, zoom: number): void {
-    if (a.awareness < 0.12 && a.alertness === 'unaware') return;
+    if (a.activity === 'dead' || (a.awareness < 0.12 && a.alertness === 'unaware')) return;
     const k = 1 / zoom;
     const cx = x * PX;
     const cy = (y - (a.species === 'roe' ? 1.8 : 1.2)) * PX - 6 * k;

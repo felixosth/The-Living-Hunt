@@ -52,8 +52,33 @@ export function Hud() {
         <TrackingStatus />
         <Meter label="Noise" value={Math.min(1, s.player.noiseRadius / 80)} testId="noise" />
         <Meter label="Seen" value={s.player.visibility} testId="visibility" />
+        <span class="hud-label" data-testid="arrows">
+          Arrows {s.player.arrows}
+        </span>
+        {s.player.carrying && (
+          <span class="hud-label">
+            Carrying {s.player.load.toFixed(0)}/{s.player.capacity} kg
+          </span>
+        )}
       </div>
+      <Prompt />
     </>
+  );
+}
+
+function Prompt() {
+  const s = snapshot.value;
+  if (!s) return null;
+  if (s.player.busy === 'dress') {
+    return (
+      <div class="panel prompt">Field-dressing… {Math.round(s.player.busyProgress * 100)} %</div>
+    );
+  }
+  if (!s.player.prompt) return null;
+  return (
+    <div class="panel prompt" data-testid="prompt">
+      <kbd>E</kbd> {s.player.prompt}
+    </div>
   );
 }
 

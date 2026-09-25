@@ -2,6 +2,7 @@
  * How much the player gives away: noise from gait and ground, visibility from
  * movement, cover and light, and the scent cone carried downwind.
  */
+import { CARRY_CAPACITY_KG } from '../content/gear';
 import { clamp, degToRad } from '../core/math';
 import { coverAt, groundAt, type RegionMap } from './region';
 import type { Gait, PlayerState, WeatherState } from './state';
@@ -24,7 +25,8 @@ export function isMoving(player: PlayerState): boolean {
 /** Current footstep noise level (0 when standing still). */
 export function playerNoise(player: PlayerState, map: RegionMap): number {
   if (!isMoving(player)) return 0;
-  return GAIT_NOISE[player.gait] * groundAt(map, player.x, player.y).noise;
+  const burden = 1 + 0.5 * Math.min(1, player.load / CARRY_CAPACITY_KG);
+  return GAIT_NOISE[player.gait] * groundAt(map, player.x, player.y).noise * burden;
 }
 
 /** Distance in metres at which a noise can be heard; wind masks it. */

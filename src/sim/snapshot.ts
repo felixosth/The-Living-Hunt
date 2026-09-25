@@ -2,12 +2,17 @@
  * Read-only view of the world published after each step for rendering and UI.
  * Rendering and UI never read WorldState directly.
  */
+
+import { CARRY_CAPACITY_KG } from '../content/gear';
 import { SPECIES_IDS, type SpeciesId } from '../content/species';
 import type { TerrainId } from '../content/terrain';
 import { type GameTime, lightLevel } from '../core/time';
 import { ALARMED, SUSPICIOUS } from './animals';
+import { DRESS_SECONDS, interactPrompt } from './hunting';
 import { type Knowledge, level } from './knowledge';
-import { getRegionMap, groundAt, type RegionId } from './region';
+import { sightlineObstruction } from './perception';
+import { getRegionMap, groundAt, type RegionId, type RegionMap } from './region';
+import { angleName, breathFactor, relativeAngle, reticleSigma, type ShotAngle } from './shot';
 import { SIGN_KIND_NAMES, SignFlag, SignKind, type SignKindName, type SignStore } from './signs';
 import type { Activity, Animal, Gait, WorldState } from './state';
 import {
@@ -62,6 +67,24 @@ export interface KnowledgeView {
   signs: Record<SignKindName, { level: number; progress: number }>;
 }
 
+export interface BowView {
+  targetId: number;
+  species: SpeciesId;
+  distance: number;
+  /** Target heading relative to the line of fire (radians). */
+  theta: number;
+  angle: ShotAngle;
+  /** Reticle: one standard deviation of the arrow's landing point, in metres. */
+  sigma: number;
+  aimU: number;
+  aimV: number;
+  breath: 'breathing' | 'holding' | 'shaking' | 'recovering';
+  /** Twigs in the way: 0 clear to 1 blocked. */
+  brush: number;
+  /** How well you know the target's anatomy (0–4). */
+  anatomyLevel: number;
+}
+
 export interface Snapshot {
   tick: number;
   time: GameTime;
@@ -82,7 +105,17 @@ export interface Snapshot {
     noiseRadius: number;
     /** How visible the player is, 0..1. */
     visibility: number;
+    arrows: number;
+    load: number;
+    capacity: number;
+    carrying: { species: SpeciesId; weightKg: number } | null;
+    /** What the interact key (E) would do here. */
+    prompt: string | null;
+    busy: 'scan' | 'dress' | null;
+    /** Progress of the current timed action, 0..1. */
+    busyProgress: number;
   };
+  bow: BowView | null;
   wind: { fromDeg: number; speed: number };
   scent: ScentCone;
   /** Ambient daylight 0..1. */
@@ -102,6 +135,45 @@ export interface Snapshot {
   /** God view only: every sign. */
   allSigns?: { count: number; x: Float32Array; y: Float32Array; kind: Uint8Array };
   godView: boolean;
+}
+
+function carryingView(state: WorldState): Snapshot['player']['carrying'] {
+  const id = state.player.carrying;
+  if (id === null) return null;
+  const a = state.animals.find((x) => x.id === id);
+  return a?.carcass ? { species: a.species, weightKg: a.carcass.weightKg } : null;
+}
+
+function bowView(state: WorldState, map: RegionMap): BowView | null {
+  const { player } = state;
+  const bow = player.bow;
+  if (!bow) return null;
+  const a = state.animals.find((x) => x.id === bow.target);
+  if (!a) return null;
+  const distance = Math.hypot(a.x - player.x, a.y - player.y);
+  const theta = relativeAngle(a.heading, player.x, player.y, a.x, a.y);
+  const now = state.time;
+  const factor = breathFactor(bow, now);
+  return {
+    targetId: a.id,
+    species: a.species,
+    distance,
+    theta,
+    angle: angleName(theta),
+    sigma: reticleSigma(bow, now, distance, isMoving(player), a.speed),
+    aimU: bow.aimU,
+    aimV: bow.aimV,
+    breath:
+      bow.breathAt > 0
+        ? factor <= 0.5
+          ? 'holding'
+          : 'shaking'
+        : factor > 1
+          ? 'recovering'
+          : 'breathing',
+    brush: sightlineObstruction(map, player.x, player.y, a.x, a.y),
+    anatomyLevel: level(player.knowledge.species[a.species]),
+  };
 }
 
 function knowledgeView(k: Knowledge): KnowledgeView {
@@ -197,11 +269,25 @@ export function makeSnapshot(
       noise,
       noiseRadius: noiseRadiusM(noise, state.weather.windSpeed),
       visibility: playerVisibility(player, map, light),
+      arrows: player.arrows,
+      load: player.load,
+      capacity: CARRY_CAPACITY_KG,
+      carrying: carryingView(state),
+      prompt: player.busy || player.bow ? null : interactPrompt(state, map),
+      busy: player.busy,
+      busyProgress: player.busy
+        ? 1 -
+          Math.max(0, player.busyUntil - state.time) /
+            (player.busy === 'scan' ? SCAN_SECONDS : DRESS_SECONDS)
+        : 0,
     },
+    bow: bowView(state, map),
     wind: { fromDeg: state.weather.windFromDeg, speed: state.weather.windSpeed },
     scent: scentCone(state.weather),
     light,
-    animals: state.animals.filter((a) => a.seen || godView).map((a) => viewAnimal(a, godView)),
+    animals: state.animals
+      .filter((a) => (a.seen || godView) && a.id !== player.carrying)
+      .map((a) => viewAnimal(a, godView)),
     signs: noticedSigns(state.signs),
     signsRevision: state.signs.revision,
     tracking: {

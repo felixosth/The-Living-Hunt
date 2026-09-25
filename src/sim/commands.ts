@@ -3,6 +3,7 @@
  * step(); commands are validated here and malformed ones are ignored.
  */
 import type { SimEvent } from './events';
+import { aim, breath, draw, interact, lower, release } from './hunting';
 import { getRegionMap, isWalkable } from './region';
 import { GAITS, type Gait, type WorldState } from './state';
 import { follow, inspect, startScan } from './tracking';
@@ -15,6 +16,15 @@ export type Command =
   | { type: 'inspect'; signId: number }
   /** Follow the trail of the animal that made a sign (0 stops following). */
   | { type: 'follow'; signId: number }
+  /** Draw the bow on an animal you can see. */
+  | { type: 'draw'; target: number }
+  /** Move the aim point on the shot inset (metres right of centre, height). */
+  | { type: 'aim'; u: number; v: number }
+  | { type: 'breath'; hold: boolean }
+  | { type: 'release' }
+  | { type: 'lower' }
+  /** The context action: dress, pick up, put down, bring home. */
+  | { type: 'interact' }
   /** Developer tool: move the player instantly (god view). */
   | { type: 'teleport'; x: number; y: number };
 
@@ -37,6 +47,24 @@ export function applyCommand(state: WorldState, command: Command, events: SimEve
       return;
     case 'follow':
       if (Number.isInteger(command.signId)) follow(state, command.signId);
+      return;
+    case 'draw':
+      if (Number.isInteger(command.target)) draw(state, command.target);
+      return;
+    case 'aim':
+      aim(state, command.u, command.v);
+      return;
+    case 'breath':
+      breath(state, command.hold === true);
+      return;
+    case 'release':
+      release(state, getRegionMap(state.seed, state.regionId), events);
+      return;
+    case 'lower':
+      lower(state);
+      return;
+    case 'interact':
+      interact(state, getRegionMap(state.seed, state.regionId), events);
       return;
     case 'teleport': {
       const map = getRegionMap(state.seed, state.regionId);

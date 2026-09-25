@@ -3,6 +3,7 @@ import type { SpeciesId } from '../content/species';
 import type { GameTime, Season } from '../core/time';
 import type { KnowledgeArea } from './knowledge';
 import type { Reading } from './reading';
+import type { HuntSummary } from './state';
 
 /** Sounds animals make that the player may hear. */
 export type SoundKind = 'bark' | 'crash' | 'flush';
@@ -22,6 +23,20 @@ export type SimEvent =
   /** You saw the animal whose sign you had read: the reading is confirmed. */
   | { type: 'confirmed'; animalId: number; species: SpeciesId }
   | { type: 'trailLost' }
+  | { type: 'died'; animalId: number; species: SpeciesId; seen: boolean }
+  /** The arrow is away: did it hit? (Where, you'll have to work out.) */
+  | { type: 'shot'; animalId: number; hit: boolean; dropped: boolean }
+  | {
+      type: 'dressed';
+      animalId: number;
+      species: SpeciesId;
+      liveWeightKg: number;
+      arrowBack: boolean;
+    }
+  | { type: 'pickedUp'; what: 'carcass' | 'arrow'; species?: SpeciesId; weightKg?: number }
+  | { type: 'dropped'; species: SpeciesId }
+  | { type: 'tooHeavy'; weightKg: number }
+  | { type: 'delivered'; summary: HuntSummary }
   | { type: 'trailFound' };
 
 export type SimEventType = SimEvent['type'];

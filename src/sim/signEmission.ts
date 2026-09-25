@@ -123,3 +123,38 @@ export function emitBed(store: SignStore, a: Animal, groupSize: number, now: num
     lifetimeH: SIGN_LIFETIME_H.bed,
   });
 }
+
+/** Blood along the line a wounded animal just moved, while it still bleeds. */
+export function emitBlood(
+  store: SignStore,
+  rng: RngState,
+  a: Animal,
+  x0: number,
+  y0: number,
+  now: number,
+): void {
+  const w = a.wound;
+  if (!w || w.bleed <= 0) return;
+  const moved = Math.hypot(a.x - x0, a.y - y0);
+  if (moved < 1e-6) return;
+  const age = now - w.at;
+  if (w.bleedFor > 0 && age > w.bleedFor) return;
+  const rate = w.bleedFor > 0 ? w.bleed * (1 - age / w.bleedFor) : w.bleed;
+  for (let d = nextRange(rng, 0, 1); d < moved; d += 1) {
+    if (!chance(rng, rate)) continue;
+    const k = d / moved;
+    addSign(store, {
+      kind: SignKind.Blood,
+      species: a.species,
+      animal: a.id,
+      x: x0 + (a.x - x0) * k + nextRange(rng, -0.3, 0.3),
+      y: y0 + (a.y - y0) * k + nextRange(rng, -0.3, 0.3),
+      t: now,
+      heading: a.heading,
+      detail: w.blood,
+      weight: a.weightKg,
+      integrity: 1,
+      lifetimeH: SIGN_LIFETIME_H.blood,
+    });
+  }
+}

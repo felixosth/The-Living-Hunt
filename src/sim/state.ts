@@ -17,7 +17,7 @@ import type { SignStore } from './signs';
  * Version of the WorldState shape. Bump it whenever the shape changes, and add
  * a migration in src/persistence/migrations.ts.
  */
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 export type Gait = 'sneak' | 'walk' | 'run';
 export const GAITS: readonly Gait[] = ['sneak', 'walk', 'run'];
@@ -33,13 +33,80 @@ export interface PlayerState {
   moveX: number;
   moveY: number;
   /** A timed action that holds the player in place, and when it ends. */
-  busy: 'scan' | null;
+  busy: 'scan' | 'dress' | null;
+  /** The animal being dressed. */
+  busyTarget: number;
   busyUntil: number;
   knowledge: Knowledge;
   /** The trail being followed: whose, and the last sign found on it. */
   follow: FollowState | null;
   /** Per animal id: when you last read one of its signs, and when that was last confirmed. */
   read: Record<string, { at: number; confirmed: number }>;
+  /** The bow, while drawn. */
+  bow: BowState | null;
+  arrows: number;
+  /** Id of the carcass on your back, if any. */
+  carrying: number | null;
+  /** Weight carried, kg. */
+  load: number;
+  /** Total metres walked, for measuring trails. */
+  walked: number;
+  /** What happened with each animal you've been after, by animal id. */
+  hunts: Record<string, HuntRecord>;
+  /** Animals brought home. */
+  trophies: HuntSummary[];
+}
+
+export interface BowState {
+  target: number;
+  drawnAt: number;
+  /** Aim point on the target's side view: metres right of its centre, and height. */
+  aimU: number;
+  aimV: number;
+  /** When you started holding your breath (0 = breathing). */
+  breathAt: number;
+  /** When you last let your breath go; it takes a while to recover. */
+  breathOutAt: number;
+}
+
+export interface HuntRecord {
+  /** First time you found one of its signs (0 = never). */
+  firstSignAt: number;
+  shotAt: number;
+  shotDistance: number;
+  /** How it stood: broadside, quartering away, ... */
+  shotAngle: string;
+  zone: HitZone | null;
+  hitX: number;
+  hitY: number;
+  walkedAtShot: number;
+  diedAt: number;
+  deathX: number;
+  deathY: number;
+  /** Metres you walked from the shot to reaching the carcass. */
+  trailWalked: number;
+  recoveredAt: number;
+}
+
+export interface HuntSummary {
+  animalId: number;
+  species: SpeciesId;
+  sex: 'f' | 'm';
+  juvenile: boolean;
+  liveWeightKg: number;
+  carcassWeightKg: number;
+  dressed: boolean;
+  firstSignAt: number;
+  shotAt: number;
+  recoveredAt: number;
+  deliveredAt: number;
+  shotDistance: number;
+  shotAngle: string;
+  zone: HitZone;
+  /** How far the animal went after the hit, in metres. */
+  ranM: number;
+  trailWalkedM: number;
+  meat: 'good' | 'tainted' | 'poor';
 }
 
 export interface FollowState {
@@ -60,7 +127,59 @@ export interface WeatherState {
 }
 
 /** What an animal is doing. */
-export type Activity = 'bedded' | 'feeding' | 'travelling' | 'drinking' | 'fleeing';
+export type Activity = 'bedded' | 'feeding' | 'travelling' | 'drinking' | 'fleeing' | 'dead';
+
+/** Where an arrow ended up in (or past) an animal. */
+export type HitZone =
+  | 'heart'
+  | 'lungs'
+  | 'liver'
+  | 'gut'
+  | 'spine'
+  | 'muscle'
+  | 'bone'
+  | 'graze'
+  | 'miss';
+
+export interface Wound {
+  zone: HitZone;
+  /** Game time of the hit. */
+  at: number;
+  /** Blood type it leaves (see content/blood). */
+  blood: number;
+  /** Blood signs per metre moved, at the time of the hit. */
+  bleed: number;
+  /** How long the bleeding lasts (game seconds; 0 = until death). */
+  bleedFor: number;
+  /** Metres it will still run before lying down (or dropping). */
+  fleeLeft: number;
+  /** Dies when it has run `fleeLeft` metres (heart and lung hits). */
+  diesAfterRun: boolean;
+  /** Game time it dies if left alone (0 = not from this wound). */
+  deathAt: number;
+  /** Game time the wound stops mattering, for survivable hits (0 = never). */
+  healAt: number;
+  /** Times it has been pushed up from its bed. */
+  pushed: number;
+  /** The gut was opened. */
+  tainted: boolean;
+  /** The arrow stayed in the animal. */
+  lodgedArrow: boolean;
+}
+
+export interface Carcass {
+  diedAt: number;
+  zone: HitZone;
+  /** Gut contents spilled into the meat. */
+  tainted: boolean;
+  dressed: boolean;
+  /** Game time it was field-dressed (0 = not yet). */
+  dressedAt: number;
+  /** An arrow is still inside; you get it back when you dress it. */
+  lodgedArrow: boolean;
+  /** Current weight (less once dressed), kg. */
+  weightKg: number;
+}
 
 export interface AnimalHome {
   /** Points of interest (indices into the region's list) this animal uses. */
@@ -111,6 +230,9 @@ export interface Animal {
   since: number;
   /** Metres walked since its last recorded print. */
   stride: number;
+  wound: Wound | null;
+  /** Set when it dies. */
+  carcass: Carcass | null;
 }
 
 export interface WorldState {

@@ -3,6 +3,7 @@ import { effect } from '@preact/signals';
 import { Input } from './app/input';
 import { startLoop } from './app/loop';
 import { GameSession, TICK_MS } from './app/session';
+import { bodyCentre } from './content/anatomy';
 import { SPECIES } from './content/species';
 import { formatClock, formatDate } from './core/time';
 import { decodeSave, encodeSave } from './persistence/saveFile';
@@ -10,6 +11,7 @@ import { downloadSaveFile, readFileBytes, readSlot, writeSlot } from './persiste
 import { Renderer } from './render/renderer';
 import type { SimEvent } from './sim/events';
 import { getRegionMap } from './sim/region';
+import { BOW_RANGE_M } from './sim/shot';
 import type { WorldState } from './sim/state';
 import { INSPECT_RANGE_M } from './sim/tracking';
 import { createWorld, stateHash } from './sim/world';
@@ -27,6 +29,7 @@ import {
   reading,
   showToast,
   snapshot,
+  summary,
 } from './ui/store';
 
 const QUICKSAVE_SLOT = 'quicksave';
@@ -120,6 +123,32 @@ async function boot(): Promise<void> {
     scan: () => session.enqueue({ type: 'scan' }),
     inspect: (signId) => session.enqueue({ type: 'inspect', signId }),
     follow: (signId) => session.enqueue({ type: 'follow', signId }),
+    draw(target) {
+      // Shooting happens in real time.
+      if (session.timeScale !== 1) actions.setTimeScale(1);
+      session.enqueue({ type: 'draw', target });
+    },
+    aim(u, v) {
+      // Only the latest aim matters; it is sent once per tick.
+      pendingAim = { u, v };
+    },
+    breath: (hold) => session.enqueue({ type: 'breath', hold }),
+    release() {
+      flushAim();
+      session.enqueue({ type: 'release' });
+      input.resync();
+    },
+    lower() {
+      session.enqueue({ type: 'lower' });
+      input.resync();
+    },
+    interact: () => session.enqueue({ type: 'interact' }),
+  };
+
+  let pendingAim: { u: number; v: number } | null = null;
+  const flushAim = () => {
+    if (pendingAim) session.enqueue({ type: 'aim', ...pendingAim });
+    pendingAim = null;
   };
 
   mountUi(uiRoot, actions);
@@ -135,6 +164,11 @@ async function boot(): Promise<void> {
     if (e.code === 'KeyT') actions.setTimeScale(session.timeScale === 1 || session.paused ? 10 : 1);
     if (e.code === 'KeyP') actions.togglePause();
     if (e.code === 'KeyQ') actions.scan();
+    if (e.code === 'KeyE') actions.interact();
+    if (e.code === 'Space' && session.curr.bow) {
+      e.preventDefault();
+      actions.breath(true);
+    }
     if (e.code === 'KeyJ') journalOpen.value = !journalOpen.value;
     if (e.code === 'KeyH') helpOpen.value = !helpOpen.value;
     if (e.code === 'KeyF') {
@@ -144,7 +178,9 @@ async function boot(): Promise<void> {
       else if (r) actions.follow(r.signId);
     }
     if (e.code === 'Escape') {
-      if (helpOpen.value) helpOpen.value = false;
+      if (session.curr.bow) actions.lower();
+      else if (summary.value) summary.value = null;
+      else if (helpOpen.value) helpOpen.value = false;
       else if (journalOpen.value) journalOpen.value = false;
       else if (reading.value) reading.value = null;
       else if (session.curr.tracking.following) actions.follow(0);
@@ -170,7 +206,71 @@ async function boot(): Promise<void> {
     renderer.setHoverSign(sign?.id ?? 0);
     stage.style.cursor = sign ? 'pointer' : '';
   });
+  // The bow: hold the right button on an animal to draw, move the mouse to aim, left click to shoot.
+  let aimLocal = { u: 0, v: 0 };
+  const animalUnder = (e: MouseEvent) => {
+    const at = renderer.screenToWorld(e.clientX, e.clientY);
+    const reach = Math.max(4, renderer.metresPerPixel(24));
+    let best: number | null = null;
+    let bestD = reach;
+    for (const a of session.curr.animals) {
+      if (!a.seen || a.activity === 'dead') continue;
+      const d = Math.hypot(a.x - at.x, a.y - at.y);
+      if (d < bestD) {
+        bestD = d;
+        best = a.id;
+      }
+    }
+    return best;
+  };
+  const startDraw = (e: MouseEvent) => {
+    const p = session.curr.player;
+    if (p.carrying) {
+      addNotice('Put down what you are carrying first (E).');
+      return;
+    }
+    if (p.arrows <= 0) {
+      addNotice('Your quiver is empty.');
+      return;
+    }
+    const target = animalUnder(e);
+    if (target === null) {
+      addNotice('Nothing to draw on there. Point at an animal you can see.');
+      return;
+    }
+    const a = session.curr.animals.find((x) => x.id === target);
+    if (a && Math.hypot(a.x - p.x, a.y - p.y) > BOW_RANGE_M) {
+      addNotice(`Too far for a bow shot (${Math.round(Math.hypot(a.x - p.x, a.y - p.y))} m).`);
+      return;
+    }
+    aimLocal = a ? bodyCentre(a.species) : { u: 0, v: 0.5 };
+    actions.draw(target);
+  };
+  stage.addEventListener('contextmenu', (e) => e.preventDefault());
+  stage.addEventListener('mousedown', (e) => {
+    if (e.button === 2) startDraw(e);
+    else if (e.button === 0 && session.curr.bow) actions.release();
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && session.curr.bow) actions.breath(false);
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 2 && session.curr.bow) actions.lower();
+  });
+  window.addEventListener('mousemove', (e) => {
+    const bow = session.curr.bow;
+    if (!bow) return;
+    // Relative mouse movement nudges the aim across the side view.
+    const metresPerPx = bow.species === 'hare' ? 0.0022 : 0.0045;
+    aimLocal = {
+      u: Math.max(-1.5, Math.min(1.5, aimLocal.u + e.movementX * metresPerPx)),
+      v: Math.max(0, Math.min(1.6, aimLocal.v - e.movementY * metresPerPx)),
+    };
+    actions.aim(aimLocal.u, aimLocal.v);
+  });
+
   stage.addEventListener('click', (e) => {
+    if (session.curr.bow) return;
     const sign = signUnder(e);
     if (!sign) return;
     const p = session.curr.player;
@@ -213,6 +313,39 @@ async function boot(): Promise<void> {
       case 'trailFound':
         addNotice('You pick up the trail again.');
         return;
+      case 'shot':
+        addNotice(
+          event.dropped
+            ? 'The arrow strikes. It drops on the spot.'
+            : event.hit
+              ? 'Thwack. The arrow strikes home.'
+              : 'The arrow flies wide.',
+        );
+        return;
+      case 'died':
+        if (event.seen) addNotice(`The ${SPECIES[event.species].name} stumbles and goes down.`);
+        return;
+      case 'dressed':
+        showToast(
+          `Field-dressed: ${event.liveWeightKg.toFixed(1)} kg live.${event.arrowBack ? ' You get your arrow back.' : ''}`,
+        );
+        return;
+      case 'pickedUp':
+        showToast(
+          event.what === 'arrow'
+            ? 'You pick up your arrow.'
+            : `You shoulder the ${SPECIES[event.species ?? 'roe'].name} (${(event.weightKg ?? 0).toFixed(1)} kg).`,
+        );
+        return;
+      case 'dropped':
+        showToast(`You put the ${SPECIES[event.species].name} down.`);
+        return;
+      case 'tooHeavy':
+        showToast(`Too heavy to carry: ${event.weightKg.toFixed(1)} kg.`);
+        return;
+      case 'delivered':
+        summary.value = event.summary;
+        return;
     }
   }
 
@@ -227,6 +360,7 @@ async function boot(): Promise<void> {
     tick() {
       const command = input.poll();
       if (command) session.enqueue(command);
+      flushAim();
       const t0 = performance.now();
       const events = session.tick();
       let stirred = false;

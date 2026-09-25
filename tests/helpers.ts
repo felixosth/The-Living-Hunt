@@ -1,5 +1,9 @@
-import { type TerrainId, terrainDef } from '../src/content/terrain';
+import { DEFAULT_SCENARIO, type Scenario } from '../src/content/scenarios';
+import { Terrain, type TerrainId, terrainDef } from '../src/content/terrain';
 import type { Poi, RegionMap } from '../src/sim/region';
+import { registerRegion } from '../src/sim/region';
+import type { Animal, WorldState } from '../src/sim/state';
+import { createWorld } from '../src/sim/world';
 
 /**
  * A small synthetic region for unit tests: the terrain comes from `fill`,
@@ -54,4 +58,25 @@ export function synthMap(
     trails: [],
     fields: new Array(pois.length).fill(undefined),
   };
+}
+
+/** A 256 × 256 m open meadow with no animals of its own. */
+registerRegion('meadow', () => synthMap(128, 128, () => Terrain.Grass));
+export const MEADOW: Scenario = { ...DEFAULT_SCENARIO, id: 'meadow', regionId: 'meadow' };
+export const CENTRE = { x: 128, y: 128 };
+
+/** A meadow world holding one animal of `species` borrowed from a real forest. */
+export function lone(species: Animal['species']): { world: WorldState; a: Animal } {
+  const world = createWorld(3, MEADOW);
+  const forest = createWorld(3);
+  const a = forest.animals.find((x) => x.species === species) as Animal;
+  Object.assign(a, {
+    groupId: a.id,
+    awareness: 0,
+    wariness: 0,
+    goal: -1,
+    home: { rest: [], feed: [], water: [] },
+  });
+  world.animals = [a];
+  return { world, a };
 }

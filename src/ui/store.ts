@@ -3,6 +3,7 @@ import { signal } from '@preact/signals';
 import type { TimeScale } from '../app/session';
 import type { Reading } from '../sim/reading';
 import type { Snapshot } from '../sim/snapshot';
+import type { HuntSummary } from '../sim/state';
 
 export interface GameActions {
   setTimeScale(scale: TimeScale): void;
@@ -17,6 +18,12 @@ export interface GameActions {
   inspect(signId: number): void;
   /** Follow the trail from a sign; 0 stops following. */
   follow(signId: number): void;
+  draw(target: number): void;
+  aim(u: number, v: number): void;
+  breath(hold: boolean): void;
+  release(): void;
+  lower(): void;
+  interact(): void;
 }
 
 export interface Perf {
@@ -47,6 +54,8 @@ export const toast = signal<Toast | null>(null);
 export const reading = signal<Reading | null>(null);
 export const journalOpen = signal(false);
 export const helpOpen = signal(false);
+/** The summary of the hunt just brought home. */
+export const summary = signal<HuntSummary | null>(null);
 
 let toastId = 0;
 export function showToast(text: string, kind: Toast['kind'] = 'info'): void {

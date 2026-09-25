@@ -2,6 +2,7 @@
  * World creation and the single entry point that advances the simulation:
  * step(state, commands, dt). See docs/TECHNICAL_PLAN.md §3.
  */
+import { QUIVER_SIZE } from '../content/gear';
 import { DEFAULT_SCENARIO, type Scenario } from '../content/scenarios';
 import { cyrb53 } from '../core/hash';
 import { createStreams } from '../core/rng';
@@ -24,6 +25,7 @@ import {
 } from './animals';
 import { applyCommand, type Command } from './commands';
 import type { SimEvent } from './events';
+import { updateHunting } from './hunting';
 import { initialKnowledge } from './knowledge';
 import type { PlayerCues } from './perception';
 import { advancePlayer } from './player';
@@ -76,9 +78,17 @@ function buildWorld(seed: number, scenario: Scenario): WorldState {
       moveY: 0,
       busy: null,
       busyUntil: 0,
+      busyTarget: 0,
       knowledge: initialKnowledge(),
       follow: null,
       read: {},
+      bow: null,
+      arrows: QUIVER_SIZE,
+      carrying: null,
+      load: 0,
+      walked: 0,
+      hunts: {},
+      trophies: [],
     },
     animals: [],
     signs: createSignStore(),
@@ -128,13 +138,19 @@ function advance(
   let cues: PlayerCues | null = null;
   const light = lightLevel(state.time);
   if (playerPresent) {
-    advancePlayer(state.player, map, dt);
+    const { player } = state;
+    // With the bow drawn you can only creep.
+    if (player.bow && player.gait !== 'sneak') player.gait = 'sneak';
+    const x0 = player.x;
+    const y0 = player.y;
+    advancePlayer(player, map, dt);
+    player.walked += Math.hypot(player.x - x0, player.y - y0);
     markScentTrail(state, map, state.player);
     cues = {
       x: state.player.x,
       y: state.player.y,
       noiseRadius: noiseRadiusM(playerNoise(state.player, map), state.weather.windSpeed),
-      visibility: playerVisibility(state.player, map, light),
+      visibility: drawingVisibility(state, map, light),
       scent: scentCone(state.weather),
       light,
     };
@@ -149,6 +165,7 @@ function advance(
     onHourStarted(state, hour * SECONDS_PER_HOUR, events);
   }
   if (playerPresent) {
+    updateHunting(state, dt, events);
     updateTracking(state, map, dt, light, events);
     updateSightings(state, map, lightLevel(state.time), events);
     confirmSightings(state, events);
@@ -167,6 +184,19 @@ function onDayStarted(state: WorldState, time: GameTime, events: SimEvent[]): vo
   calmAnimals(state);
   const date = toCalendar(time);
   if (date.day === 1) events.push({ type: 'seasonStarted', time, season: date.season });
+}
+
+/** Drawing a bow is a movement: for a few seconds you are as visible as when walking. */
+function drawingVisibility(state: WorldState, map: RegionMap, light: number): number {
+  const base = playerVisibility(state.player, map, light);
+  const bow = state.player.bow;
+  if (!bow || state.time - bow.drawnAt > 12) return base;
+  const walking = playerVisibility(
+    { ...state.player, moveX: 1, moveY: 0, gait: 'walk' },
+    map,
+    light,
+  );
+  return Math.max(base, walking);
 }
 
 /** Fingerprint of the complete world state, for determinism checks. */

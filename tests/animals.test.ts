@@ -1,35 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SCENARIO, type Scenario } from '../src/content/scenarios';
 import { Terrain } from '../src/content/terrain';
 import { fromCalendar } from '../src/core/time';
 import { ALARMED, dayPart, SUSPICIOUS } from '../src/sim/animals';
 import { playerCanSee, sightlineObstruction } from '../src/sim/perception';
-import { getRegionMap, isWalkable, registerRegion } from '../src/sim/region';
-import type { Animal, WorldState } from '../src/sim/state';
+import { getRegionMap, isWalkable } from '../src/sim/region';
+import type { Animal } from '../src/sim/state';
 import { createWorld, step } from '../src/sim/world';
 import { runHeadless } from '../tools/sim-runner/headless';
-import { synthMap } from './helpers';
-
-/** A 256 × 256 m open meadow with no animals of its own. */
-registerRegion('meadow', () => synthMap(128, 128, () => Terrain.Grass));
-const MEADOW: Scenario = { ...DEFAULT_SCENARIO, id: 'meadow', regionId: 'meadow' };
-const CENTRE = { x: 128, y: 128 };
-
-/** A meadow world holding one animal of `species` borrowed from a real forest. */
-function lone(species: Animal['species']): { world: WorldState; a: Animal } {
-  const world = createWorld(3, MEADOW);
-  const forest = createWorld(3);
-  const a = forest.animals.find((x) => x.species === species) as Animal;
-  Object.assign(a, {
-    groupId: a.id,
-    awareness: 0,
-    wariness: 0,
-    goal: -1,
-    home: { rest: [], feed: [], water: [] },
-  });
-  world.animals = [a];
-  return { world, a };
-}
+import { CENTRE, lone, synthMap } from './helpers';
 
 describe('daily routines', () => {
   const run = runHeadless({ seed: 2, days: 4 });

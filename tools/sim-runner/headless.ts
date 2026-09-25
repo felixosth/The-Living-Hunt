@@ -37,7 +37,7 @@ export interface RunResult {
   startTime: GameTime;
   steps: number;
   wallMs: number;
-  eventCounts: Record<SimEvent['type'], number>;
+  eventCounts: Partial<Record<SimEvent['type'], number>>;
   /** Animal-hours per species, part of the day and activity, sampled on the hour. */
   activity: Partial<Record<SpeciesId, Partial<Record<DayPart, Partial<Record<Activity, number>>>>>>;
   daily: DailySample[];
@@ -59,19 +59,7 @@ export function runHeadless({
   const endTime = startTime + Math.round(days * SECONDS_PER_DAY);
   // The wander script has its own RNG so it never disturbs the world's streams.
   const wanderRng = seedRng(hash32(state.seed, 'headless-wander'));
-  const eventCounts: RunResult['eventCounts'] = {
-    hourStarted: 0,
-    dayStarted: 0,
-    seasonStarted: 0,
-    sound: 0,
-    sighted: 0,
-    scanned: 0,
-    inspected: 0,
-    learned: 0,
-    confirmed: 0,
-    trailLost: 0,
-    trailFound: 0,
-  };
+  const eventCounts: RunResult['eventCounts'] = {};
   const activity: RunResult['activity'] = {};
   const daily: DailySample[] = [];
   let steps = 0;
@@ -85,7 +73,7 @@ export function runHeadless({
     }
     const dt = Math.min(stepSeconds, endTime - state.time);
     for (const event of step(state, commands, dt)) {
-      eventCounts[event.type]++;
+      eventCounts[event.type] = (eventCounts[event.type] ?? 0) + 1;
       if (event.type === 'hourStarted') {
         const part = dayPart(event.time);
         for (const a of state.animals) {

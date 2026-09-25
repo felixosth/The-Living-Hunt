@@ -3,6 +3,7 @@
  * src/sim/state.ts and add an entry here that upgrades the previous version.
  * Old saves are then upgraded step by step on load.
  */
+import { QUIVER_SIZE } from '../content/gear';
 import { initialKnowledge } from '../sim/knowledge';
 import { getRegionMap, isWalkable } from '../sim/region';
 import { createSignStore } from '../sim/signs';
@@ -48,6 +49,30 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
         knowledge: initialKnowledge(),
         follow: null,
         read: {},
+      },
+    };
+  },
+  /** Step 4 of M1: the bow, wounds, carcasses and hunt records. */
+  3: (old) => {
+    const player = old.player as Record<string, unknown>;
+    const animals = (old.animals as Record<string, unknown>[]).map((a) => ({
+      ...a,
+      wound: null,
+      carcass: null,
+    }));
+    return {
+      ...old,
+      animals,
+      player: {
+        ...player,
+        busyTarget: 0,
+        bow: null,
+        arrows: QUIVER_SIZE,
+        carrying: null,
+        load: 0,
+        walked: 0,
+        hunts: {},
+        trophies: [],
       },
     };
   },

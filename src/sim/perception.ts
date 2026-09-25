@@ -115,7 +115,7 @@ export function playerCanSee(
   const d = Math.hypot(a.x - player.x, a.y - player.y);
   if (d < 4) return true;
   const moving = a.speed > 0.3 ? 1 : 0.7;
-  const posture = a.activity === 'bedded' ? 0.3 : 1;
+  const posture = a.activity === 'bedded' || a.activity === 'dead' ? 0.3 : 1;
   const small = a.species === 'hare' ? 0.7 : 1;
   const conspicuous = moving * posture * small * (1 - 0.6 * coverAt(map, a.x, a.y));
   if (d > playerSightRange(light, time) * conspicuous) return false;

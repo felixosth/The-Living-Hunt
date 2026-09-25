@@ -6,6 +6,7 @@
  * so walking covers 5 m of ground per real second and crossing a 1 km region
  * takes a few game hours.
  */
+import { CARRY_CAPACITY_KG } from '../content/gear';
 import { groundAt, isWalkable, type RegionMap, regionHeightM, regionWidthM } from './region';
 import type { Gait, PlayerState } from './state';
 
@@ -26,7 +27,9 @@ export function advancePlayer(player: PlayerState, map: RegionMap, dtSeconds: nu
 
   const maxX = regionWidthM(map) - EDGE_MARGIN_M;
   const maxY = regionHeightM(map) - EDGE_MARGIN_M;
-  const speed = GAIT_SPEED_M_PER_MIN[player.gait] * groundAt(map, player.x, player.y).speed;
+  const burden = 1 - 0.35 * Math.min(1, player.load / CARRY_CAPACITY_KG);
+  const speed =
+    GAIT_SPEED_M_PER_MIN[player.gait] * groundAt(map, player.x, player.y).speed * burden;
   const distance = (speed * dtSeconds) / 60;
   const substeps = Math.max(1, Math.ceil(distance / SUBSTEP_M));
   const sx = (moveX * distance) / substeps;
